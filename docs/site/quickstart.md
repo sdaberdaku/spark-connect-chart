@@ -37,7 +37,7 @@ print(spark.range(0, 1000, numPartitions=4).select(add_one("id").alias("v")).gro
 PY
 ```
 
-The query needs an executor, so `kubectl -n spark get pods` shows an executor pod next to the driver while it runs. The result is `[Row(sum(v)=500500)]`.
+The chart starts its executors together with the driver and keeps them running (`executor.instances`, one by default), so `kubectl -n spark get pods` shows an executor pod next to the driver before and after the query. The result is `[Row(sum(v)=500500)]`.
 
 ## Clean up
 

@@ -124,14 +124,19 @@ Checked on 2026-10-28:
   capabilities dropped, no privilege escalation, read-only root filesystem.
 - Two ServiceAccounts (create toggles, annotations for cloud workload identity): one for the driver, bound to the
   Role below, and one for executors with no Role binding. Executors run user code, so they get no Kubernetes API
-  rights.
+  rights. With `serviceAccount.driver.create: false` the chart still creates the Role and RoleBinding and binds them
+  to `serviceAccount.driver.name`, which is then required (the render fails without it). The executor image
+  defaults to the driver image and can be overridden with `executor.image`.
 - A namespaced Role with only what the driver needs to manage executor pods and their services, config maps and
   PVCs. The e2e tests prove the list is enough.
 - Connect authentication: an optional pre-shared token (`spark.connect.authenticate.token`), off by default. The
   token comes from a Secret the user names, or from a Secret the chart generates (kept across upgrades with
-  `lookup`), and reaches the driver through an env var, never through the rendered properties file. The PySpark
-  client switches to TLS whenever a token is set while the server speaks plaintext gRPC, so with a token the
-  endpoint is usable only behind TLS termination at the Ingress or Gateway, not over `kubectl port-forward`.
+  `lookup`), and reaches the driver through an env var, never through the rendered properties file. The server
+  speaks plaintext gRPC. The PySpark client sends a token over TLS, except for the host `localhost`, where it uses
+  local channel credentials and sends it over plaintext (`toChannel` in `pyspark/sql/connect/client/core.py`, same
+  in 4.0, 4.1 and 4.2; verified by e2e). So a token works over `kubectl port-forward`
+  (`sc://localhost:15002/;token=<token>`) and behind TLS termination at the Ingress or Gateway
+  (`sc://<host>:443/;use_ssl=true;token=<token>`), but not against a plaintext LoadBalancer or NodePort address.
   `NOTES.txt` and the docs warn that an exposed endpoint without a token lets anyone who reaches it run code.
 
 ### Optional extras
@@ -168,7 +173,7 @@ On every PR:
 - `helm lint` and `ct lint` (which enforces the version bump).
 - helm-unittest suites for every template, covering each toggle and each exposure combination (off, Ingress only,
   Gateway only, both), the `sparkConf` collision failure, and the derived resources.
-- kubeconform on the rendered manifests for the last three Kubernetes minors, with schemas for the Gateway API and
+- kubeconform on the rendered manifests for the `kubeVersion` floor (1.29) and the last three Kubernetes minors, with schemas for the Gateway API and
   Prometheus Operator CRDs.
 - The chart README (helm-docs) and `values.schema.json` are generated at build time and not committed, so they
   cannot drift; committed copies would go stale on every Renovate PR (planning-time call, 2026-10-28).
@@ -179,8 +184,10 @@ On every PR:
   - Run a PySpark Connect client of the same Spark version, on the same Python minor as the image's `python3`
     (read from the image), twice:
     - over `kubectl port-forward` against a release without a token;
-    - through the Gateway with an HTTPS listener (self-signed certificate made in the job) against a release with a
-      token, which proves authentication and the TLS path together.
+    - over `kubectl port-forward` against the same release after the upgrade that turns the token on, with and
+      without the token;
+    - through the Gateway with an HTTPS listener (self-signed certificate made in the job) with the token, which
+      proves authentication and the TLS path together, and without it.
   - Each run executes a query that needs an executor and a plain Python UDF under the chart's defaults, which proves
     executor pods start and that the executor Python works.
 - A single `ci-ok` job that depends on all of the above.
@@ -244,7 +251,7 @@ MkDocs (Material) on GitHub Pages, deployed from `main` when docs change and aft
     each stock image ships; stock images have no pyarrow or pandas, so pandas UDFs and Arrow-optimized UDFs need
     an image that has them (such as `ghcr.io/sdaberdaku/spark`) and `spark.sql.execution.pythonUDF.arrow.enabled`
     set back to `"true"`.
-  - Security: the token, why it needs TLS termination in front, and the risk of exposing the endpoint without it.
+  - Security: the token, when it needs TLS termination in front (everywhere except `localhost`, so not over a port-forward), the risk of exposing the endpoint without it, and a dedicated namespace.
   - Operations: upgrades, the scheduled restart, metrics and alerts, the history server.
   - Development and release: tests, the automation above, how a release happens.
 
