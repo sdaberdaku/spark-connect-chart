@@ -1,0 +1,84 @@
+# Tags the chart version from Chart.yaml when it has no tag yet, then publishes the chart to GHCR
+# (OCI), the Artifact Hub repository metadata, and a GitHub Release. Runs on every push to main,
+# on a manual tag push, and when discover.yml dispatches it.
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version: //p' charts/spark-connect/Chart.yaml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$REF_TYPE" = tag ]; then
+            [ "$REF_NAME" = "v$version" ] || { echo "Tag $REF_NAME does not match chart version $version"; exit 1; }
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "Tag v$version exists: nothing to release."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            git tag "v$version"
+            git push origin "v$version"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Package the chart
+        if: steps.version.outputs.publish == 'true'
+        run: make tools schema docs package
+      - name: Push the chart to GHCR
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "$TOKEN" | .bin/helm registry login ghcr.io -u "$ACTOR" --password-stdin
+          .bin/helm push "dist/spark-connect-$VERSION.tgz" oci://ghcr.io/sdaberdaku/charts
+      - name: Install oras
+        if: steps.version.outputs.publish == 'true'
+        uses: oras-project/setup-oras@v2.0.3
+      - name: Push the Artifact Hub metadata
+        if: steps.version.outputs.publish == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "$TOKEN" | oras login ghcr.io -u "$ACTOR" --password-stdin
+          oras push ghcr.io/sdaberdaku/charts/spark-connect:artifacthub.io \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+      - name: Create the GitHub Release and refresh the docs site
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release create "v$VERSION" "dist/spark-connect-$VERSION.tgz" \
+              --title "spark-connect $VERSION" --generate-notes
+          fi
+          gh workflow run pages.yml --ref main
