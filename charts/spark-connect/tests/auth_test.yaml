@@ -72,6 +72,21 @@ tests:
     asserts:
       - notMatchRegex: {path: raw, pattern: 'WARNING'}
       - matchRegex: {path: raw, pattern: 'sc://<host>:443/;use_ssl=true;token='}
+  - it: warns when the service is a LoadBalancer without auth
+    set: {service: {type: LoadBalancer}}
+    template: templates/NOTES.txt
+    asserts:
+      - matchRegex: {path: raw, pattern: 'WARNING: the Spark Connect endpoint is exposed without authentication'}
+  - it: does not warn about a NodePort service with auth
+    set: {service: {type: NodePort}, auth: {enabled: true}}
+    template: templates/NOTES.txt
+    asserts:
+      - notMatchRegex: {path: raw, pattern: 'WARNING'}
+  - it: does not warn about a LoadBalancer service with auth
+    set: {service: {type: LoadBalancer}, auth: {enabled: true}}
+    template: templates/NOTES.txt
+    asserts:
+      - notMatchRegex: {path: raw, pattern: 'WARNING'}
   - it: stays quiet when not exposed
     template: templates/NOTES.txt
     asserts:

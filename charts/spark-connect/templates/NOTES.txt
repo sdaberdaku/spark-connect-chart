@@ -7,7 +7,7 @@ Reach it from your machine:
 Then connect a client with:
 
   sc://localhost:{{ include "spark-connect.num" .Values.service.ports.connect }}
-{{- if or .Values.ingress.connect.enabled .Values.gateway.connect.enabled }}
+{{- if or .Values.ingress.connect.enabled .Values.gateway.connect.enabled (ne .Values.service.type "ClusterIP") }}
 
 {{- if not .Values.auth.enabled }}
 
