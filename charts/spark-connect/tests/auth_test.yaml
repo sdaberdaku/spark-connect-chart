@@ -72,6 +72,7 @@ tests:
     asserts:
       - notMatchRegex: {path: raw, pattern: 'WARNING'}
       - matchRegex: {path: raw, pattern: 'sc://<host>:443/;use_ssl=true;token='}
+      - matchRegex: {path: raw, pattern: 'terminate TLS at the Ingress or the Gateway'}
   - it: warns when the service is a LoadBalancer without auth
     set: {service: {type: LoadBalancer}}
     template: templates/NOTES.txt
@@ -82,6 +83,9 @@ tests:
     template: templates/NOTES.txt
     asserts:
       - notMatchRegex: {path: raw, pattern: 'WARNING'}
+      - notMatchRegex: {path: raw, pattern: ':443'}
+      - matchRegex: {path: raw, pattern: 'plaintext gRPC'}
+      - matchRegex: {path: raw, pattern: 'sc://<host>:<port>/;use_ssl=true;token='}
   - it: does not warn about a LoadBalancer service with auth
     set: {service: {type: LoadBalancer}, auth: {enabled: true}}
     template: templates/NOTES.txt
@@ -91,3 +95,19 @@ tests:
     template: templates/NOTES.txt
     asserts:
       - notMatchRegex: {path: raw, pattern: 'WARNING'}
+  - it: prints the plain connection string without auth
+    template: templates/NOTES.txt
+    asserts:
+      - matchRegex: {path: raw, pattern: '(?m)^  sc://localhost:15002$'}
+      - notMatchRegex: {path: raw, pattern: 'token'}
+  - it: prints the token connection string and the Secret command with auth
+    set: {auth: {enabled: true}}
+    template: templates/NOTES.txt
+    asserts:
+      - matchRegex: {path: raw, pattern: '(?m)^  sc://localhost:15002/;token=<token>$'}
+      - matchRegex: {path: raw, pattern: "kubectl -n NAMESPACE get secret RELEASE-NAME-spark-connect-auth -o jsonpath='\\{.data.token\\}' \\| base64 -d"}
+  - it: names the existing Secret and key in the Secret command
+    set: {auth: {enabled: true, existingSecret: mine, secretKey: my.key}}
+    template: templates/NOTES.txt
+    asserts:
+      - matchRegex: {path: raw, pattern: "get secret mine -o jsonpath='\\{.data.my\\\\.key\\}' \\| base64 -d"}
