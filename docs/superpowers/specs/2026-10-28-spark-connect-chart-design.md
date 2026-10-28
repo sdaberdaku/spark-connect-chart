@@ -154,7 +154,8 @@ Checked on 2026-10-28:
 - Supported Spark lines: every `X.Y` with `X >= 4` that has plain `X.Y.Z` tags on `apache/spark`. A file in the
   repo lists one row per line at its latest patch; CI tests every row. The default `appVersion` is the newest row.
 - The chart's version follows its own semver, starting at 1.0.0, with these rules for Spark changes:
-  - a Spark patch on any row: chart patch;
+  - a Spark patch of the default line (which moves `appVersion`): chart patch; a patch of an older line only
+    updates its CI row, since the packaged chart does not change;
   - a new Spark minor line (which becomes the default): chart minor;
   - a new Spark major line (which becomes the default): chart major, since upgrading the chart then moves users to
     a new Spark major.
