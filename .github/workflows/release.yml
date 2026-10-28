@@ -1,0 +1,92 @@
+# Publishes the chart version from Chart.yaml when it has no tag yet: OCI chart on GHCR, Artifact Hub
+# metadata, docs site refresh, and last of all the GitHub Release, which creates the tag. The tag
+# therefore exists only after everything else succeeded, and a rerun retries the whole publish.
+# Runs from main only: on pushes to main, when discover.yml dispatches it, and on a manual v* tag
+# push (recovery path, the tag must be on main and match the chart version).
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version: //p' charts/spark-connect/Chart.yaml)
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad chart version '$version'"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$REF_TYPE" = tag ]; then
+            [ "$REF_NAME" = "v$version" ] || { echo "::error::Tag $REF_NAME does not match chart version $version"; exit 1; }
+            git merge-base --is-ancestor HEAD origin/main || { echo "::error::Tag $REF_NAME is not on main"; exit 1; }
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$REF_NAME" = main ] || { echo "::error::release runs from main only"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "Tag v$version exists: nothing to release."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Package the chart
+        if: steps.version.outputs.publish == 'true'
+        run: make tools schema docs package
+      - name: Push the chart to GHCR
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "$TOKEN" | .bin/helm registry login ghcr.io -u "$ACTOR" --password-stdin
+          .bin/helm push "dist/spark-connect-$VERSION.tgz" oci://ghcr.io/sdaberdaku/charts
+      - name: Install oras
+        if: steps.version.outputs.publish == 'true'
+        uses: oras-project/setup-oras@v2.0.3
+      - name: Push the Artifact Hub metadata
+        if: steps.version.outputs.publish == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "$TOKEN" | oras login ghcr.io -u "$ACTOR" --password-stdin
+          oras push ghcr.io/sdaberdaku/charts/spark-connect:artifacthub.io \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+      - name: Refresh the docs site and create the GitHub Release (creates the tag)
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh workflow run pages.yml --ref main
+          if ! gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release create "v$VERSION" "dist/spark-connect-$VERSION.tgz" \
+              --target "$GITHUB_SHA" --title "spark-connect $VERSION" --generate-notes
+          fi
