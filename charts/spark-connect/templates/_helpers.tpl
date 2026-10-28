@@ -41,6 +41,11 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
 {{- end }}
 
+{{/* Executor image: executor.image.repository and executor.image.tag, each falling back to image.*. */}}
+{{- define "spark-connect.executorImage" -}}
+{{ .Values.executor.image.repository | default .Values.image.repository }}:{{ .Values.executor.image.tag | default .Values.image.tag | default .Chart.AppVersion }}
+{{- end }}
+
 {{- define "spark-connect.driverServiceAccountName" -}}
 {{- if .Values.serviceAccount.driver.create }}
 {{- default (include "spark-connect.nameWith" (list . "driver")) .Values.serviceAccount.driver.name }}
@@ -82,7 +87,7 @@ spark.kubernetes.namespace: {{ $ns | quote }}
 spark.connect.grpc.binding.port: {{ include "spark-connect.num" .Values.service.ports.connect | quote }}
 spark.ui.port: {{ include "spark-connect.num" .Values.service.ports.ui | quote }}
 spark.kubernetes.container.image: {{ $image | quote }}
-spark.kubernetes.executor.container.image: {{ $image | quote }}
+spark.kubernetes.executor.container.image: {{ include "spark-connect.executorImage" . | quote }}
 spark.kubernetes.container.image.pullPolicy: {{ .Values.image.pullPolicy | quote }}
 spark.kubernetes.authenticate.driver.serviceAccountName: {{ include "spark-connect.driverServiceAccountName" . | quote }}
 spark.kubernetes.authenticate.executor.serviceAccountName: {{ include "spark-connect.executorServiceAccountName" . | quote }}
@@ -108,41 +113,55 @@ spark.scheduler.allocation.file: /etc/spark-connect/pools.xml
 {{- end }}
 {{- end }}
 
-{{/* Every key the chart owns (rendered or set at runtime) and the value to use instead. */}}
+{{/* Every key the chart owns (rendered or set at runtime) and what to tell a user who sets it in sparkConf. */}}
 {{- define "spark-connect.ownedPaths" -}}
-spark.master: nothing (the chart always targets the in-cluster API server)
-spark.kubernetes.namespace: the release namespace
-spark.connect.grpc.binding.port: service.ports.connect
-spark.ui.port: service.ports.ui
-spark.driver.host: nothing (the driver pod IP is set at start)
-spark.kubernetes.driver.pod.name: nothing (the driver pod name is set at start)
-spark.kubernetes.container.image: image.repository and image.tag
-spark.kubernetes.executor.container.image: image.repository and image.tag
-spark.kubernetes.container.image.pullPolicy: image.pullPolicy
-spark.kubernetes.authenticate.driver.serviceAccountName: serviceAccount.driver
-spark.kubernetes.authenticate.executor.serviceAccountName: serviceAccount.executor
-spark.kubernetes.executor.podTemplateFile: nothing (the chart renders the executor pod template)
-spark.kubernetes.executor.podTemplateContainerName: nothing (the chart renders the executor pod template)
-spark.driver.cores: driver.cores
-spark.driver.memory: driver.memoryMiB
-spark.driver.memoryOverhead: driver.memoryOverheadMiB
-spark.driver.extraJavaOptions: driver.javaOptions
-spark.executor.cores: executor.cores
-spark.executor.memory: executor.memoryMiB
-spark.executor.memoryOverhead: executor.memoryOverheadMiB
-spark.executor.extraJavaOptions: executor.javaOptions
-spark.executor.instances: executor.instances
-spark.kubernetes.executor.request.cores: executor.cpuRequest
-spark.jars.packages: packages
-spark.jars.ivy: nothing (the Ivy cache is on an emptyDir under /tmp)
-spark.local.dir: nothing (scratch space is an emptyDir)
-spark.scheduler.allocation.file: pools
-spark.connect.authenticate.token: auth
+spark.master: " and cannot be overridden (the chart always targets the in-cluster API server)"
+spark.kubernetes.namespace: "; use the release namespace instead"
+spark.connect.grpc.binding.port: "; use service.ports.connect instead"
+spark.ui.port: "; use service.ports.ui instead"
+spark.driver.host: " and cannot be overridden (the driver pod IP is set at start)"
+spark.kubernetes.driver.pod.name: " and cannot be overridden (the driver pod name is set at start)"
+spark.kubernetes.container.image: "; use image.repository and image.tag instead"
+spark.kubernetes.executor.container.image: "; use executor.image (or image.repository and image.tag) instead"
+spark.kubernetes.container.image.pullPolicy: "; use image.pullPolicy instead"
+spark.kubernetes.authenticate.driver.serviceAccountName: "; use serviceAccount.driver instead"
+spark.kubernetes.authenticate.executor.serviceAccountName: "; use serviceAccount.executor instead"
+spark.kubernetes.executor.podTemplateFile: " and cannot be overridden (the chart renders the executor pod template)"
+spark.kubernetes.executor.podTemplateContainerName: " and cannot be overridden (the chart renders the executor pod template)"
+spark.driver.cores: "; use driver.cores instead"
+spark.driver.memory: "; use driver.memoryMiB instead"
+spark.driver.memoryOverhead: "; use driver.memoryOverheadMiB instead"
+spark.driver.extraJavaOptions: "; use driver.javaOptions instead"
+spark.executor.cores: "; use executor.cores instead"
+spark.executor.memory: "; use executor.memoryMiB instead"
+spark.executor.memoryOverhead: "; use executor.memoryOverheadMiB instead"
+spark.executor.extraJavaOptions: "; use executor.javaOptions instead"
+spark.executor.instances: "; use executor.instances instead"
+spark.kubernetes.executor.request.cores: "; use executor.cpuRequest instead"
+spark.jars.packages: "; use packages instead"
+spark.jars.ivy: " and cannot be overridden (the Ivy cache is on an emptyDir under /tmp)"
+spark.local.dir: " and cannot be overridden (scratch space is an emptyDir)"
+spark.scheduler.allocation.file: "; use pools instead"
+spark.connect.authenticate.token: "; use auth instead"
 {{- end }}
 
-{{/* A configuration value as a string; whole floats (numbers from values files) print without an exponent. */}}
+{{/*
+A configuration value as a string; whole floats (numbers from values files) print without an exponent.
+Usage: include "spark-connect.confValue" (list "sparkConf.some.key" $value). Fails on a map or a list (what an
+unescaped dotted key in --set produces) and on a newline.
+*/}}
 {{- define "spark-connect.confValue" -}}
-{{- if and (kindIs "float64" .) (eq . (floor .)) }}{{ printf "%d" (int64 .) }}{{ else }}{{ toString . }}{{ end }}
+{{- $label := index . 0 }}
+{{- $v := index . 1 }}
+{{- if or (kindIs "map" $v) (kindIs "slice" $v) }}
+{{- fail (printf "%s is a %s, not a value. Escape the dots in the key, for example --set 'sparkConf.spark\\.sql\\.shuffle\\.partitions=64'" $label (ternary "map" "list" (kindIs "map" $v))) }}
+{{- end }}
+{{- $out := "" }}
+{{- if and (kindIs "float64" $v) (eq $v (floor $v)) }}{{ $out = printf "%d" (int64 $v) }}{{ else }}{{ $out = toString $v }}{{ end }}
+{{- if contains "\n" $out }}
+{{- fail (printf "%s contains a newline, which spark-defaults.conf cannot hold" $label) }}
+{{- end }}
+{{- $out }}
 {{- end }}
 
 {{/* The final spark-defaults.conf map: sparkConf (templated) plus owned keys. Fails on a collision. */}}
@@ -152,9 +171,13 @@ spark.connect.authenticate.token: auth
 {{- $out := include "spark-connect.ownedConf" . | fromYaml }}
 {{- range $k, $v := .Values.sparkConf }}
 {{- if hasKey $paths $k }}
-{{- fail (printf "sparkConf.%s is set by the chart; use %s instead" $k (get $paths $k)) }}
+{{- fail (printf "sparkConf.%s is set by the chart%s" $k (get $paths $k)) }}
 {{- end }}
-{{- $_ := set $out $k (tpl (include "spark-connect.confValue" $v) $root) }}
+{{- $val := tpl (include "spark-connect.confValue" (list (printf "sparkConf.%s" $k) $v)) $root }}
+{{- if contains "\n" $val }}
+{{- fail (printf "sparkConf.%s contains a newline, which spark-defaults.conf cannot hold" $k) }}
+{{- end }}
+{{- $_ := set $out $k $val }}
 {{- end }}
 {{- toYaml $out }}
 {{- end }}

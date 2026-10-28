@@ -26,3 +26,17 @@ tests:
         documentIndex: 0
       - equal: {path: metadata.name, value: RELEASE-NAME-y}
         documentIndex: 1
+  - it: confValue fails on a map and names the key
+    set:
+      extraObjects:
+        - '{{ include "spark-connect.confValue" (list "sparkConf.spark" (dict "sql" 1)) }}'
+    asserts:
+      - failedTemplate:
+          errorMessage: "sparkConf.spark is a map, not a value. Escape the dots in the key, for example --set 'sparkConf.spark\\.sql\\.shuffle\\.partitions=64'"
+  - it: confValue fails on a list and names the key
+    set:
+      extraObjects:
+        - '{{ include "spark-connect.confValue" (list "historyServer.conf.x" (list 1)) }}'
+    asserts:
+      - failedTemplate:
+          errorPattern: "historyServer.conf.x is a list, not a value"

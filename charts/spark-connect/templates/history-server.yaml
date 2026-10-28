@@ -10,7 +10,7 @@
 {{- $conf = merge $conf .Values.historyServer.conf }}
 {{- $opts := list }}
 {{- range $k := $keys }}
-{{- $v := include "spark-connect.confValue" (get $conf $k) | replace "\\" "\\\\" | replace "\"" "\\\"" }}
+{{- $v := include "spark-connect.confValue" (list (printf "historyServer.conf.%s" $k) (get $conf $k)) | replace "\\" "\\\\" | replace "\"" "\\\"" }}
 {{- $opts = append $opts (printf "-D%s=\"%s\"" $k $v) }}
 {{- end }}
 apiVersion: apps/v1

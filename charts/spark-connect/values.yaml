@@ -16,8 +16,10 @@ commonPodAnnotations: {}
 # -- Labels added to every pod the chart or the driver creates
 commonPodLabels: {}
 
+# @schema additionalProperties: {type: [string, number, boolean]}
 # -- Spark properties (spark-defaults.conf), as a map. Values are templated with tpl and keys are sorted.
 # Keys the chart sets itself fail the render and name the value to use instead.
+# With --set, escape the dots of a key: `--set 'sparkConf.spark\.sql\.shuffle\.partitions=64'`.
 sparkConf:
   # Spark 4.2 enables Arrow for Python UDFs and the stock images have no pyarrow.
   # Set to "true" if your image has pyarrow.
@@ -102,6 +104,11 @@ driver:
   readinessProbe: {initialDelaySeconds: 30, periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 6}
 
 executor:
+  image:
+    # -- Executor image repository. Empty uses image.repository.
+    repository: ""
+    # -- Executor image tag. Empty uses image.tag, or the chart appVersion.
+    tag: ""
   # -- Number of executors (spark.executor.instances)
   instances: 1
   # -- Executor cores (spark.executor.cores)
@@ -257,6 +264,7 @@ historyServer:
   enabled: false
   # -- Event log directory (spark.history.fs.logDirectory). Required when enabled.
   logDirectory: ""
+  # @schema additionalProperties: {type: [string, number, boolean]}
   # -- Extra spark.history.* properties
   conf: {}
   # -- History server daemon memory (SPARK_DAEMON_MEMORY)
