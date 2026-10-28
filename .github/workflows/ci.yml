@@ -53,6 +53,8 @@ jobs:
         with:
           python-version: "3.14"
       - run: make tools docs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: pip install -r docs/site/requirements.txt
       - run: mkdocs build --strict
 

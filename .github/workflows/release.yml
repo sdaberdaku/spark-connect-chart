@@ -53,6 +53,22 @@ jobs:
             2) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::git ls-remote failed with exit code $rc"; exit 1 ;;
           esac
+      - name: Write the release notes
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # The new tag does not exist yet, so this is the previous release (empty on the first one).
+          prev=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          [ "$prev" != "v$VERSION" ] || prev=$(git describe --tags --abbrev=0 --match 'v*' "v$VERSION^" 2>/dev/null || true)
+          python3 scripts/release_notes.py "$VERSION" "$prev" "$RUNNER_TEMP/notes"
+          make tools
+          # Only the working copy carries the annotation; it is never committed.
+          if [ -s "$RUNNER_TEMP/notes/changes.yaml" ]; then
+            .bin/yq -i '.annotations."artifacthub.io/changes" = load_str(strenv(RUNNER_TEMP) + "/notes/changes.yaml")' charts/spark-connect/Chart.yaml
+          fi
+          cat "$RUNNER_TEMP/notes/notes.md"
       - name: Package the chart
         if: steps.version.outputs.publish == 'true'
         run: make tools schema docs package
@@ -87,8 +103,8 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          gh workflow run pages.yml --ref main
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release create "v$VERSION" "dist/spark-connect-$VERSION.tgz" \
-              --target "$GITHUB_SHA" --title "spark-connect $VERSION" --generate-notes
+              --target "$GITHUB_SHA" --title "spark-connect $VERSION" --notes-file "$RUNNER_TEMP/notes/notes.md"
           fi
+          gh workflow run pages.yml --ref main || echo "::warning::could not refresh the docs site"

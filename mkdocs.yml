@@ -24,4 +24,5 @@ nav:
   - Security: security.md
   - Operations: operations.md
   - Development: development.md
+  - Changelog: changelog.md
   - Values reference: values.md
