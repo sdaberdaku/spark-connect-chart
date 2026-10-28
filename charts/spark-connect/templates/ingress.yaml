@@ -5,6 +5,14 @@
 {{- if and (eq $key "historyServer") (not $root.Values.historyServer.enabled) }}
 {{- fail "historyServer.enabled must be true to expose the history server" }}
 {{- end }}
+{{- if not $v.hosts }}
+{{- fail (printf "ingress.%s.hosts is required" $key) }}
+{{- end }}
+{{- range $i, $h := $v.hosts }}
+{{- if not $h.paths }}
+{{- fail (printf "ingress.%s.hosts[%d].paths is required" $key $i) }}
+{{- end }}
+{{- end }}
 {{- $service := ternary (include "spark-connect.nameWith" (list $root "history-server")) (include "spark-connect.fullname" $root) (eq $key "historyServer") }}
 {{- $port := ternary "http" $key (eq $key "historyServer") }}
 ---
@@ -12,6 +20,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "spark-connect.nameWith" (list $root $suffix) }}
+  namespace: {{ $root.Release.Namespace }}
   labels:
     {{- include "spark-connect.labels" $root | nindent 4 }}
   {{- with $v.annotations }}

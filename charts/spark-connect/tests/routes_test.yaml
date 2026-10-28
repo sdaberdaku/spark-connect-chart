@@ -29,6 +29,17 @@ tests:
       - equal: {path: spec.parentRefs, value: [{name: gw, namespace: infra, sectionName: https}]}
       - equal: {path: spec.hostnames, value: [spark.example.com]}
       - equal: {path: spec.rules, value: [{backendRefs: [{name: RELEASE-NAME-spark-connect, port: 15002}]}]}
+  - it: sets the release namespace on routes
+    set:
+      gateway:
+        connect: {enabled: true, parentRefs: [{name: gw}]}
+        ui: {enabled: true, parentRefs: [{name: gw}]}
+    template: templates/routes.yaml
+    asserts:
+      - equal: {path: metadata.namespace, value: NAMESPACE}
+        documentIndex: 0
+      - equal: {path: metadata.namespace, value: NAMESPACE}
+        documentIndex: 1
   - it: renders an HTTPRoute for the ui
     set:
       gateway:

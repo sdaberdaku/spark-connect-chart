@@ -78,12 +78,24 @@ spec:
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.restart.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.restart.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
             - name: kubectl
               image: {{ .Values.restart.image.repository }}:{{ .Values.restart.image.tag }}
               imagePullPolicy: {{ .Values.restart.image.pullPolicy }}
               securityContext:
                 {{- include "spark-connect.containerSecurityContext" . | nindent 16 }}
+              {{- with .Values.restart.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               args: [rollout, restart, deployment/{{ $driver }}]
               env:
                 - {name: HOME, value: /tmp}

@@ -290,6 +290,10 @@ historyServer:
   affinity: {}
   # -- History server tolerations
   tolerations: []
+  # -- History server topology spread constraints
+  topologySpreadConstraints: []
+  # -- History server priority class
+  priorityClassName: ""
 
 restart:
   # -- Restart the driver on a schedule with a CronJob
@@ -306,6 +310,12 @@ restart:
     tag: v1.37.2
     # -- kubectl image pull policy
     pullPolicy: IfNotPresent
+  # -- Resources of the restart container
+  resources: {}
+  # -- Node selector of the restart pod
+  nodeSelector: {}
+  # -- Tolerations of the restart pod
+  tolerations: []
 
 # -- Extra Kubernetes objects, each a map or a templated string
 extraObjects: []
