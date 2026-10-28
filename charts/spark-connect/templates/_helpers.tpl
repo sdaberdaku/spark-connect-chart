@@ -98,17 +98,19 @@ spark.kubernetes.executor.podTemplateContainerName: executor
 spark.driver.cores: {{ include "spark-connect.num" .Values.driver.cores | quote }}
 spark.driver.memory: "{{ include "spark-connect.num" .Values.driver.memoryMiB }}m"
 spark.driver.memoryOverhead: "{{ include "spark-connect.num" .Values.driver.memoryOverheadMiB }}m"
-spark.driver.extraJavaOptions: {{ .Values.driver.javaOptions | quote }}
+spark.driver.extraJavaOptions: {{ include "spark-connect.confValue" (list "driver.javaOptions" .Values.driver.javaOptions) | quote }}
 spark.executor.cores: {{ include "spark-connect.num" .Values.executor.cores | quote }}
 spark.executor.memory: "{{ include "spark-connect.num" .Values.executor.memoryMiB }}m"
 spark.executor.memoryOverhead: "{{ include "spark-connect.num" .Values.executor.memoryOverheadMiB }}m"
-spark.executor.extraJavaOptions: {{ .Values.executor.javaOptions | quote }}
+spark.executor.extraJavaOptions: {{ include "spark-connect.confValue" (list "executor.javaOptions" .Values.executor.javaOptions) | quote }}
 spark.executor.instances: {{ include "spark-connect.num" .Values.executor.instances | quote }}
 spark.kubernetes.executor.request.cores: {{ .Values.executor.cpuRequest | quote }}
 spark.jars.ivy: /tmp/.ivy
 spark.local.dir: /var/data/spark-local
 {{- with .Values.packages }}
-spark.jars.packages: {{ join "," . | quote }}
+{{- $packages := list }}
+{{- range $i, $p := . }}{{ $packages = append $packages (include "spark-connect.confValue" (list (printf "packages[%d]" $i) $p)) }}{{ end }}
+spark.jars.packages: {{ join "," $packages | quote }}
 {{- end }}
 {{- if .Values.pools }}
 spark.scheduler.allocation.file: /etc/spark-connect/pools.xml
@@ -149,7 +151,7 @@ spark.connect.authenticate.token: "; use auth instead"
 
 {{/*
 A configuration value as a string; whole floats (numbers from values files) print without an exponent.
-Usage: include "spark-connect.confValue" (list "sparkConf.some.key" $value). Fails on a map or a list (what an
+Usage: include "spark-connect.confValue" (list "sparkConf.some.key" $value), where the first item is the value path shown in errors. Fails on a map or a list (what an
 unescaped dotted key in --set produces) and on a newline.
 */}}
 {{- define "spark-connect.confValue" -}}
@@ -161,7 +163,7 @@ unescaped dotted key in --set produces) and on a newline.
 {{- $out := "" }}
 {{- if and (kindIs "float64" $v) (eq $v (floor $v)) }}{{ $out = printf "%d" (int64 $v) }}{{ else }}{{ $out = toString $v }}{{ end }}
 {{- if contains "\n" $out }}
-{{- fail (printf "%s contains a newline, which spark-defaults.conf cannot hold" $label) }}
+{{- fail (printf "%s contains a newline, which Spark properties cannot hold" $label) }}
 {{- end }}
 {{- $out }}
 {{- end }}
@@ -177,7 +179,7 @@ unescaped dotted key in --set produces) and on a newline.
 {{- end }}
 {{- $val := tpl (include "spark-connect.confValue" (list (printf "sparkConf.%s" $k) $v)) $root }}
 {{- if contains "\n" $val }}
-{{- fail (printf "sparkConf.%s contains a newline, which spark-defaults.conf cannot hold" $k) }}
+{{- fail (printf "sparkConf.%s contains a newline, which Spark properties cannot hold" $k) }}
 {{- end }}
 {{- $_ := set $out $k $val }}
 {{- end }}

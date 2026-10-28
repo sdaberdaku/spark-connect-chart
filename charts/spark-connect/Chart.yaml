@@ -1,8 +1,8 @@
 apiVersion: v2
 name: spark-connect
-description: Apache Spark Connect server on Kubernetes, with executors started on demand
+description: Apache Spark Connect server on Kubernetes, with executor pods started by the driver
 type: application
-version: 1.1.0
+version: 1.1.1
 # renovate: datasource=docker depName=apache/spark
 appVersion: "4.2.0"
 kubeVersion: ">=1.29.0-0"

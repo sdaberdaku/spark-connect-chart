@@ -282,7 +282,7 @@ MkDocs (Material) on GitHub Pages, deployed from `main` when docs change and aft
 - New Spark versions, including a new major, go from PR to published chart automatically when tests pass.
 - The `spark-connect` chart in `sdaberdaku/charts` is the starting point.
 - Arrow for Python UDFs off by default in `sparkConf`, so plain UDFs work on stock images.
-- Optional Connect token, off by default, tested through a TLS Gateway listener.
+- Optional Connect token, off by default. It works over port-forward and behind a TLS-terminating Ingress or Gateway; both are tested.
 
 ## Calls made during design (owner to check)
 

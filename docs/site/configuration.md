@@ -64,7 +64,7 @@ The Spark minor in the Iceberg artifact name has to be the Spark minor of the se
 
 The Ivy cache is on an emptyDir under `/tmp`, so resolution happens again on every driver start and needs network access to Maven Central or your mirror.
 
-For jars you do not want to download at start, build an image, or mount them. Mounting a jar into the driver is not enough: Spark only loads jars that are on the class path, so also list it in `spark.jars` (or add it to `spark.driver.extraClassPath`), and make the jar available to the executors as well. Either mount the same volume with `executor.volumes` and `executor.volumeMounts` and list the path in `spark.executor.extraClassPath`, or give `spark.jars` a URL that every pod can read, which makes Spark distribute the jar to the executors.
+For jars you do not want to download at start, build an image, or mount them. Mounting a jar into the driver is not enough: Spark only loads jars that are on the class path, so also list it in `spark.jars` (or add it to `spark.driver.extraClassPath`). The driver runs in client mode and serves local `spark.jars` paths to the executors through its file server, so a jar mounted on the driver and listed in `spark.jars` reaches the executors without an executor mount or a shared URL.
 
 ## Running Spark 4.0 or 4.1
 

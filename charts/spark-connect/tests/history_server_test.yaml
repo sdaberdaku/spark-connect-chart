@@ -128,3 +128,13 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "at '/historyServer/conf/spark': got object, want boolean or number or string"
+  - it: fails on a newline in logDirectory and names its value path
+    set: {historyServer: {enabled: true, logDirectory: "s3a://b/a\nb"}}
+    asserts:
+      - failedTemplate:
+          errorMessage: "historyServer.logDirectory contains a newline, which Spark properties cannot hold"
+  - it: fails on a newline in conf and names its value path
+    set: {historyServer: {enabled: true, logDirectory: "s3a://b/a", conf: {spark.x: "a\nb"}}}
+    asserts:
+      - failedTemplate:
+          errorMessage: "historyServer.conf.spark.x contains a newline, which Spark properties cannot hold"

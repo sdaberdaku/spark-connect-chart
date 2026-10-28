@@ -107,7 +107,28 @@ tests:
       sparkConf: {spark.foo.text: "a\nb"}
     asserts:
       - failedTemplate:
-          errorMessage: "sparkConf.spark.foo.text contains a newline, which spark-defaults.conf cannot hold"
+          errorMessage: "sparkConf.spark.foo.text contains a newline, which Spark properties cannot hold"
+
+  - it: fails on a newline in driver.javaOptions
+    set:
+      driver: {javaOptions: "-Da=1\n-Db=2"}
+    asserts:
+      - failedTemplate:
+          errorMessage: "driver.javaOptions contains a newline, which Spark properties cannot hold"
+
+  - it: fails on a newline in executor.javaOptions
+    set:
+      executor: {javaOptions: "-Da=1\n-Db=2"}
+    asserts:
+      - failedTemplate:
+          errorMessage: "executor.javaOptions contains a newline, which Spark properties cannot hold"
+
+  - it: fails on a newline in a packages entry
+    set:
+      packages: [a:b:1, "c:d:2\nx"]
+    asserts:
+      - failedTemplate:
+          errorMessage: "packages[1] contains a newline, which Spark properties cannot hold"
 
   - it: renders packages
     set:
