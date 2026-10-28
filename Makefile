@@ -38,7 +38,7 @@ CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.G
 CT_IMAGE ?= quay.io/helmpack/chart-testing:v3.15.0
 CT_ARGS ?=
 
-.PHONY: tools schema docs lint unittest kubeconform ct-lint package versions-check check
+.PHONY: e2e tools schema docs lint unittest kubeconform ct-lint package versions-check check
 tools: $(BIN)/.tools-$(HELM_VERSION)-$(HELM_UNITTEST_VERSION)-$(KIND_VERSION)-$(KUBECTL_VERSION)-$(HELM_DOCS_VERSION)-$(KUBECONFORM_VERSION)-$(HELM_SCHEMA_VERSION)-$(YQ_VERSION)
 
 $(BIN)/.tools-%:
@@ -91,3 +91,7 @@ versions-check:
 	@python3 -c "import json,re;t=lambda v:tuple(map(int,v.split('.')));a=re.search(r'^appVersion: \"?([\d.]+)',open('$(CHART)/Chart.yaml').read(),re.M).group(1);m=max((e['spark'] for e in json.load(open('spark-versions.json'))),key=t);assert a==m,f'appVersion {a} != highest spark {m}';print('appVersion',a,'ok')"
 
 check: lint unittest kubeconform versions-check
+
+SPARK_VERSION ?= $(shell sed -n 's/^appVersion: "\?\([0-9.]*\).*/\1/p' $(CHART)/Chart.yaml)
+e2e: tools schema
+	SPARK_VERSION=$(SPARK_VERSION) e2e/run.sh
