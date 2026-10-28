@@ -4,9 +4,14 @@
 {{- end }}
 {{- $name := include "spark-connect.nameWith" (list . "history-server") }}
 {{- $port := include "spark-connect.num" .Values.historyServer.port }}
-{{- $opts := list (printf "-Dspark.history.fs.logDirectory=%s" .Values.historyServer.logDirectory) (printf "-Dspark.history.ui.port=%s" $port) }}
-{{- range $k := keys .Values.historyServer.conf | sortAlpha }}
-{{- $opts = append $opts (printf "-D%s=%s" $k (toString (get $.Values.historyServer.conf $k))) }}
+{{- /* Spark splits SPARK_HISTORY_OPTS on whitespace and honours quotes and backslashes: quote every value. */}}
+{{- $conf := dict "spark.history.fs.logDirectory" .Values.historyServer.logDirectory "spark.history.ui.port" $port }}
+{{- $keys := concat (keys $conf | sortAlpha) (keys .Values.historyServer.conf | sortAlpha) }}
+{{- $conf = merge $conf .Values.historyServer.conf }}
+{{- $opts := list }}
+{{- range $k := $keys }}
+{{- $v := include "spark-connect.confValue" (get $conf $k) | replace "\\" "\\\\" | replace "\"" "\\\"" }}
+{{- $opts = append $opts (printf "-D%s=\"%s\"" $k $v) }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment

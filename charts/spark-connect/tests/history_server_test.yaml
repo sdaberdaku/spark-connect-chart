@@ -58,7 +58,7 @@ tests:
         documentIndex: 0
       - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_DAEMON_MEMORY, value: 1g}}
         documentIndex: 0
-      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_HISTORY_OPTS, value: "-Dspark.history.fs.logDirectory=file:/spark-events -Dspark.history.ui.port=18080 -Dspark.history.a=2 -Dspark.history.z=1"}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_HISTORY_OPTS, value: '-Dspark.history.fs.logDirectory="file:/spark-events" -Dspark.history.ui.port="18080" -Dspark.history.a="2" -Dspark.history.z="1"'}}
         documentIndex: 0
       - contains: {path: 'spec.template.spec.containers[0].env', content: {name: X, value: y}}
         documentIndex: 0
@@ -91,3 +91,21 @@ tests:
         documentIndex: 1
       - equal: {path: 'spec.ports[0].targetPort', value: http}
         documentIndex: 1
+  - it: quotes values with spaces, quotes and backslashes
+    set:
+      historyServer:
+        enabled: true
+        logDirectory: "file:/e"
+        conf: {spark.ui.filters: 'a b', spark.x: 'p\q"r'}
+    documentSelector: {path: kind, value: Deployment}
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: SPARK_HISTORY_OPTS, value: '-Dspark.history.fs.logDirectory="file:/e" -Dspark.history.ui.port="18080" -Dspark.ui.filters="a b" -Dspark.x="p\\q\"r"'}
+  - it: prints large whole numbers from values files without an exponent
+    values: [values/big.yaml]
+    documentSelector: {path: kind, value: Deployment}
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: SPARK_HISTORY_OPTS, value: '-Dspark.history.fs.logDirectory="file:/e" -Dspark.history.ui.port="18080" -Dspark.history.ui.maxApplications="1000000"'}

@@ -140,6 +140,11 @@ spark.scheduler.allocation.file: pools
 spark.connect.authenticate.token: auth
 {{- end }}
 
+{{/* A configuration value as a string; whole floats (numbers from values files) print without an exponent. */}}
+{{- define "spark-connect.confValue" -}}
+{{- if and (kindIs "float64" .) (eq . (floor .)) }}{{ printf "%d" (int64 .) }}{{ else }}{{ toString . }}{{ end }}
+{{- end }}
+
 {{/* The final spark-defaults.conf map: sparkConf (templated) plus owned keys. Fails on a collision. */}}
 {{- define "spark-connect.sparkDefaults" -}}
 {{- $root := . }}
@@ -149,8 +154,7 @@ spark.connect.authenticate.token: auth
 {{- if hasKey $paths $k }}
 {{- fail (printf "sparkConf.%s is set by the chart; use %s instead" $k (get $paths $k)) }}
 {{- end }}
-{{- $s := ternary (printf "%d" (int64 $v)) (toString $v) (and (kindIs "float64" $v) (eq $v (floor $v))) }}
-{{- $_ := set $out $k (tpl $s $root) }}
+{{- $_ := set $out $k (tpl (include "spark-connect.confValue" $v) $root) }}
 {{- end }}
 {{- toYaml $out }}
 {{- end }}

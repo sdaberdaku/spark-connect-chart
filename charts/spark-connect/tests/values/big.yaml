@@ -1,0 +1,5 @@
+historyServer:
+  enabled: true
+  logDirectory: "file:/e"
+  conf:
+    spark.history.ui.maxApplications: 1000000

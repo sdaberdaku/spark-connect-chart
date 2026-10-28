@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: driver
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

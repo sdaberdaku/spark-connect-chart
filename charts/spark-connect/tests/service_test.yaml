@@ -9,6 +9,7 @@ tests:
     asserts:
       - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect}
       - equal: {path: spec.type, value: ClusterIP}
+      - equal: {path: 'metadata.labels["app.kubernetes.io/component"]', value: driver}
       - equal:
           path: spec.selector
           value:
