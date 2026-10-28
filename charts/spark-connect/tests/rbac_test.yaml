@@ -28,7 +28,7 @@ tests:
         documentIndex: 0
   - it: skips the driver service account
     template: templates/serviceaccounts.yaml
-    set: {serviceAccount: {driver: {create: false}}}
+    set: {serviceAccount: {driver: {create: false, name: mine}}}
     asserts:
       - hasDocuments: {count: 1}
       - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-executor}
@@ -40,19 +40,25 @@ tests:
       - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-driver}
   - it: skips both service accounts
     template: templates/serviceaccounts.yaml
-    set: {serviceAccount: {driver: {create: false}, executor: {create: false}}}
+    set: {serviceAccount: {driver: {create: false, name: mine}, executor: {create: false}}}
     asserts:
       - hasDocuments: {count: 0}
-  - it: uses default or the given name when not created
-    template: templates/driver.yaml
+  - it: fails when the driver service account is neither created nor named
+    template: templates/rbac.yaml
     set: {serviceAccount: {driver: {create: false}}}
     asserts:
-      - equal: {path: spec.template.spec.serviceAccountName, value: default}
+      - failedTemplate:
+          errorMessage: serviceAccount.driver.name is required when serviceAccount.driver.create is false (the driver needs its own ServiceAccount with rights to manage executor pods)
   - it: uses the given name when not created
     template: templates/driver.yaml
     set: {serviceAccount: {driver: {create: false, name: mine}}}
     asserts:
       - equal: {path: spec.template.spec.serviceAccountName, value: mine}
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: true}
+  - it: mounts the service account token in the driver pod
+    template: templates/driver.yaml
+    asserts:
+      - equal: {path: spec.template.spec.automountServiceAccountToken, value: true}
   - it: grants the driver exactly the needed verbs
     template: templates/rbac.yaml
     documentIndex: 0
@@ -73,11 +79,17 @@ tests:
       - equal: {path: roleRef.kind, value: Role}
       - equal: {path: roleRef.name, value: RELEASE-NAME-spark-connect-driver}
       - equal: {path: subjects, value: [{kind: ServiceAccount, name: RELEASE-NAME-spark-connect-driver, namespace: NAMESPACE}]}
-  - it: skips rbac without the driver service account
+  - it: binds the role to an existing driver service account
     template: templates/rbac.yaml
-    set: {serviceAccount: {driver: {create: false}}}
+    set: {serviceAccount: {driver: {create: false, name: mine}}}
     asserts:
-      - hasDocuments: {count: 0}
+      - hasDocuments: {count: 2}
+      - isKind: {of: Role}
+        documentIndex: 0
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-driver}
+        documentIndex: 1
+      - equal: {path: subjects, value: [{kind: ServiceAccount, name: mine, namespace: NAMESPACE}]}
+        documentIndex: 1
   - it: keeps role, binding and subject consistent for long names
     template: templates/rbac.yaml
     release: {name: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij}

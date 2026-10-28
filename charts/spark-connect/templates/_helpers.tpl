@@ -49,8 +49,10 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "spark-connect.driverServiceAccountName" -}}
 {{- if .Values.serviceAccount.driver.create }}
 {{- default (include "spark-connect.nameWith" (list . "driver")) .Values.serviceAccount.driver.name }}
+{{- else if .Values.serviceAccount.driver.name }}
+{{- .Values.serviceAccount.driver.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.driver.name }}
+{{- fail "serviceAccount.driver.name is required when serviceAccount.driver.create is false (the driver needs its own ServiceAccount with rights to manage executor pods)" }}
 {{- end }}
 {{- end }}
 
