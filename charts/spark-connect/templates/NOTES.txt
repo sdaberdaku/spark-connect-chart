@@ -7,3 +7,17 @@ Reach it from your machine:
 Then connect a client with:
 
   sc://localhost:{{ include "spark-connect.num" .Values.service.ports.connect }}
+{{- if or .Values.ingress.connect.enabled .Values.gateway.connect.enabled }}
+
+{{- if not .Values.auth.enabled }}
+
+WARNING: the Spark Connect endpoint is exposed without authentication.
+Anyone who can reach it can run code on the cluster. Set auth.enabled=true.
+{{- else }}
+
+The Connect endpoint is exposed with a token. Put TLS in front of it (the token
+travels in a header) and connect with:
+
+  sc://<host>:443/;use_ssl=true;token=<token>
+{{- end }}
+{{- end }}

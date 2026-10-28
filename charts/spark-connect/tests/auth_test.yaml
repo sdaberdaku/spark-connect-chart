@@ -1,0 +1,78 @@
+suite: auth
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
+templates:
+  - templates/auth-secret.yaml
+  - templates/driver.yaml
+  - templates/configmap.yaml
+  - templates/NOTES.txt
+tests:
+  - it: renders nothing for auth when disabled
+    templates: [templates/auth-secret.yaml]
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: sets no token env when disabled
+    template: templates/driver.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SPARK_CONNECT_AUTHENTICATE_TOKEN}
+          any: true
+  - it: generates a 32 character token Secret
+    set: {auth: {enabled: true}}
+    template: templates/auth-secret.yaml
+    asserts:
+      - isKind: {of: Secret}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-auth}
+      - matchRegex: {path: stringData.token, pattern: '^[A-Za-z0-9]{32}$'}
+  - it: passes the token to the driver from the Secret
+    set: {auth: {enabled: true}}
+    template: templates/driver.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPARK_CONNECT_AUTHENTICATE_TOKEN
+            valueFrom:
+              secretKeyRef: {name: RELEASE-NAME-spark-connect-auth, key: token}
+  - it: keeps the token out of spark-defaults.conf
+    set: {auth: {enabled: true}}
+    template: templates/configmap.yaml
+    asserts:
+      - notMatchRegex: {path: 'data["spark-defaults.conf"]', pattern: 'authenticate.token'}
+  - it: uses an existing Secret without rendering one
+    set: {auth: {enabled: true, existingSecret: mine, secretKey: k}}
+    templates: [templates/auth-secret.yaml]
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: references the existing Secret from the driver
+    set: {auth: {enabled: true, existingSecret: mine, secretKey: k}}
+    template: templates/driver.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SPARK_CONNECT_AUTHENTICATE_TOKEN
+            valueFrom:
+              secretKeyRef: {name: mine, key: k}
+  - it: warns when exposed through an Ingress without auth
+    set: {ingress: {connect: {enabled: true}}}
+    template: templates/NOTES.txt
+    asserts:
+      - matchRegex: {path: raw, pattern: 'WARNING: the Spark Connect endpoint is exposed without authentication'}
+  - it: warns when exposed through a Gateway without auth
+    set: {gateway: {connect: {enabled: true}}}
+    template: templates/NOTES.txt
+    asserts:
+      - matchRegex: {path: raw, pattern: 'WARNING: the Spark Connect endpoint is exposed without authentication'}
+  - it: explains TLS instead of warning when exposed with auth
+    set: {auth: {enabled: true}, ingress: {connect: {enabled: true}}}
+    template: templates/NOTES.txt
+    asserts:
+      - notMatchRegex: {path: raw, pattern: 'WARNING'}
+      - matchRegex: {path: raw, pattern: 'sc://<host>:443/;use_ssl=true;token='}
+  - it: stays quiet when not exposed
+    template: templates/NOTES.txt
+    asserts:
+      - notMatchRegex: {path: raw, pattern: 'WARNING'}

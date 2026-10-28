@@ -84,6 +84,13 @@ spec:
             - {name: SPARK_NO_DAEMONIZE, value: "true"}
             - {name: SPARK_LOG_DIR, value: /tmp/spark-logs}
             - {name: SPARK_PID_DIR, value: /tmp}
+            {{- if .Values.auth.enabled }}
+            - name: SPARK_CONNECT_AUTHENTICATE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "spark-connect.nameWith" (list . "auth")) .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.secretKey }}
+            {{- end }}
             {{- with .Values.driver.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
