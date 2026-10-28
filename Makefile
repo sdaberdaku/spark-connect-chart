@@ -64,6 +64,7 @@ docs: tools
 	helm-docs --chart-search-root charts
 	mkdir -p docs/site
 	cp $(CHART)/README.md docs/site/values.md
+	python3 scripts/changelog_page.py
 
 lint: tools schema docs
 	$(HELM) lint $(CHART)

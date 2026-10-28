@@ -8,7 +8,7 @@ All tools are pinned in the `Makefile` and downloaded into `.bin/` by `make tool
 | ------ | ------------ |
 | `make tools` | Download the pinned helm, helm plugins, kind, kubectl, helm-docs, kubeconform and yq. |
 | `make schema` | Generate `values.schema.json` from `values.yaml`. |
-| `make docs` | Generate the chart README with helm-docs and copy it to `docs/site/values.md`. |
+| `make docs` | Generate the chart README with helm-docs, copy it to `docs/site/values.md` and build `docs/site/changelog.md` from the GitHub Releases (from `CHANGELOG.md` when offline). |
 | `make lint` | `helm lint`. |
 | `make unittest` | helm-unittest suites. |
 | `make kubeconform` | Validate the rendered manifests and the executor pod template for the default and all-on values, on the chart's `kubeVersion` floor (1.29) and the last three Kubernetes minors. |
@@ -18,7 +18,7 @@ All tools are pinned in the `Makefile` and downloaded into `.bin/` by `make tool
 | `make package` | Package the chart into `dist/`. |
 | `make e2e` | End-to-end run on kind for `SPARK_VERSION` (default: the chart `appVersion`). |
 
-The generated files (`charts/spark-connect/README.md`, `charts/spark-connect/values.schema.json`, `docs/site/values.md`) are not committed. Every target that needs them generates them first, so they cannot go stale.
+The generated files (`charts/spark-connect/README.md`, `charts/spark-connect/values.schema.json`, `docs/site/values.md`, `docs/site/changelog.md`) are not committed. Every target that needs them generates them first, so they cannot go stale.
 
 Python helper tests run with `python3 -m unittest discover -s tests`.
 
@@ -58,6 +58,6 @@ Draft pull requests skip CI, so `ci-ok` stays red on a draft on purpose. A chang
 
 - Renovate opens pull requests for Spark patch updates (minor and major updates of `apache/spark` are left to the discovery job), for the tools pinned in the `Makefile`, the end-to-end script and the workflows, for the kubectl image used by the restart job, the docs requirements and the GitHub Actions. They merge automatically once `ci-ok` is green. A Spark patch of the default line moves `appVersion` and bumps the chart patch version; a patch of an older line only changes its CI row, since the packaged chart does not change.
 - A daily discovery workflow lists the plain `X.Y.Z` tags on `apache/spark`. For any line `X.Y` with `X >= 4` that is newer than the newest row, it adds a row at the latest patch, moves `appVersion`, bumps the chart minor (or the major, for a new Spark major) and opens a pull request with auto-merge. A new Spark major needs no code change. If CI fails the pull request stays open for a person to look at.
-- A release workflow runs on every push to `main`. It compares the chart version in `Chart.yaml` with the existing tags. If `v<version>` does not exist yet (`git ls-remote` reports the tag missing; any other error fails the run), it publishes in this order: package the chart, push it to `oci://ghcr.io/sdaberdaku/charts/spark-connect`, push the Artifact Hub metadata, refresh the docs site, and last create the GitHub Release with the packaged chart and generated notes. The Release creates the tag, so the tag exists only after every earlier step succeeded, and a failed run is retried by running the workflow again. The release workflow runs from `main` only. The release check also runs daily, because a pull request merged by the discovery bot does not start workflows.
+- A release workflow runs on every push to `main`. It compares the chart version in `Chart.yaml` with the existing tags. If `v<version>` does not exist yet (`git ls-remote` reports the tag missing; any other error fails the run), it publishes in this order: package the chart, push it to `oci://ghcr.io/sdaberdaku/charts/spark-connect`, push the Artifact Hub metadata, refresh the docs site, and last create the GitHub Release with the packaged chart. The release notes come from the section of `CHANGELOG.md` for that version when it has one, otherwise from the titles of the pull requests merged since the previous release. The same bullets go into the GitHub Release and, as the `artifacthub.io/changes` annotation of the packaged chart, into the Artifact Hub changelog; the annotation is added to the working copy of `Chart.yaml` during the release and is never committed. The Release creates the tag, so the tag exists only after every earlier step succeeded, and a failed run is retried by running the workflow again. The release workflow runs from `main` only. The release check also runs daily, because a pull request merged by the discovery bot does not start workflows.
 
 Nothing in this flow is run by hand. A person only steps in when CI fails on an automatic pull request.
