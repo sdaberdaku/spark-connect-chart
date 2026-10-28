@@ -185,7 +185,7 @@ On every PR:
 - A single `ci-ok` job that depends on all of the above.
 
 The same scripts run locally through `make` targets (create the kind cluster, install, run the e2e client, tear
-down), with the kind cluster config in the repo.
+down); the kind node image is pinned in the e2e script, no cluster config file is needed.
 
 ## Automation
 
