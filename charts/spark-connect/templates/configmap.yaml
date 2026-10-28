@@ -1,8 +1,7 @@
-{{- $fullname := include "spark-connect.fullname" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ $fullname }}-conf
+  name: {{ include "spark-connect.nameWith" (list . "conf") }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "spark-connect.labels" . | nindent 4 }}

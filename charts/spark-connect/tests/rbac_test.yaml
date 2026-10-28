@@ -1,0 +1,89 @@
+suite: serviceaccounts and rbac
+templates:
+  - templates/serviceaccounts.yaml
+  - templates/rbac.yaml
+  - templates/driver.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders both service accounts
+    template: templates/serviceaccounts.yaml
+    asserts:
+      - hasDocuments: {count: 2}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-driver}
+        documentIndex: 0
+      - equal: {path: automountServiceAccountToken, value: true}
+        documentIndex: 0
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-executor}
+        documentIndex: 1
+      - equal: {path: automountServiceAccountToken, value: false}
+        documentIndex: 1
+  - it: passes annotations to the service accounts
+    template: templates/serviceaccounts.yaml
+    set: {serviceAccount: {driver: {annotations: {x: y}}}}
+    asserts:
+      - equal: {path: metadata.annotations, value: {x: y}}
+        documentIndex: 0
+  - it: skips the driver service account
+    template: templates/serviceaccounts.yaml
+    set: {serviceAccount: {driver: {create: false}}}
+    asserts:
+      - hasDocuments: {count: 1}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-executor}
+  - it: skips the executor service account
+    template: templates/serviceaccounts.yaml
+    set: {serviceAccount: {executor: {create: false}}}
+    asserts:
+      - hasDocuments: {count: 1}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-driver}
+  - it: skips both service accounts
+    template: templates/serviceaccounts.yaml
+    set: {serviceAccount: {driver: {create: false}, executor: {create: false}}}
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: uses default or the given name when not created
+    template: templates/driver.yaml
+    set: {serviceAccount: {driver: {create: false}}}
+    asserts:
+      - equal: {path: spec.template.spec.serviceAccountName, value: default}
+  - it: uses the given name when not created
+    template: templates/driver.yaml
+    set: {serviceAccount: {driver: {create: false, name: mine}}}
+    asserts:
+      - equal: {path: spec.template.spec.serviceAccountName, value: mine}
+  - it: grants the driver exactly the needed verbs
+    template: templates/rbac.yaml
+    documentIndex: 0
+    asserts:
+      - isKind: {of: Role}
+      - equal:
+          path: rules
+          value:
+            - {apiGroups: [""], resources: [pods], verbs: [create, get, list, watch, delete, deletecollection, patch]}
+            - {apiGroups: [""], resources: [services], verbs: [create, get, list, watch, delete, deletecollection]}
+            - {apiGroups: [""], resources: [configmaps], verbs: [create, get, list, watch, delete, deletecollection]}
+            - {apiGroups: [""], resources: [persistentvolumeclaims], verbs: [create, get, list, watch, delete, deletecollection]}
+  - it: binds only the driver service account
+    template: templates/rbac.yaml
+    documentIndex: 1
+    asserts:
+      - isKind: {of: RoleBinding}
+      - equal: {path: roleRef.kind, value: Role}
+      - equal: {path: roleRef.name, value: RELEASE-NAME-spark-connect-driver}
+      - equal: {path: subjects, value: [{kind: ServiceAccount, name: RELEASE-NAME-spark-connect-driver, namespace: NAMESPACE}]}
+  - it: skips rbac without the driver service account
+    template: templates/rbac.yaml
+    set: {serviceAccount: {driver: {create: false}}}
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: keeps role, binding and subject consistent for long names
+    template: templates/rbac.yaml
+    release: {name: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij}
+    asserts:
+      - equal: {path: metadata.name, value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
+        documentIndex: 0
+      - equal: {path: metadata.name, value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
+        documentIndex: 1
+      - equal: {path: roleRef.name, value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
+        documentIndex: 1
+      - equal: {path: 'subjects[0].name', value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
+        documentIndex: 1

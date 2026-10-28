@@ -1,0 +1,132 @@
+suite: driver
+templates:
+  - templates/driver.yaml
+  - templates/configmap.yaml
+tests:
+  - it: renders the single-replica Recreate deployment
+    template: templates/driver.yaml
+    asserts:
+      - isKind: {of: Deployment}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-driver}
+      - equal: {path: spec.replicas, value: 1}
+      - equal: {path: spec.strategy.type, value: Recreate}
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: driver}
+      - equal: {path: 'spec.template.metadata.labels["app.kubernetes.io/component"]', value: driver}
+      - equal: {path: spec.template.spec.serviceAccountName, value: RELEASE-NAME-spark-connect-driver}
+      - notExists: {path: spec.template.spec.affinity}
+  - it: starts the connect server with runtime conf in args
+    template: templates/driver.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].name', value: driver}
+      - equal: {path: 'spec.template.spec.containers[0].command', value: [/opt/entrypoint.sh]}
+      - equal:
+          path: 'spec.template.spec.containers[0].args'
+          value:
+            - /opt/spark/sbin/start-connect-server.sh
+            - --conf
+            - spark.driver.host=$(SPARK_DRIVER_POD_IP)
+            - --conf
+            - spark.kubernetes.driver.pod.name=$(SPARK_DRIVER_POD_NAME)
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_CONF_DIR, value: /etc/spark-connect}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_NO_DAEMONIZE, value: "true"}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_LOG_DIR, value: /tmp/spark-logs}}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: SPARK_PID_DIR, value: /tmp}}
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: SPARK_DRIVER_POD_IP, valueFrom: {fieldRef: {fieldPath: status.podIP}}}
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: SPARK_DRIVER_POD_NAME, valueFrom: {fieldRef: {fieldPath: metadata.name}}}
+      - equal: {path: 'spec.template.spec.containers[0].lifecycle.preStop.exec.command', value: [/opt/spark/sbin/stop-connect-server.sh]}
+  - it: mounts config and scratch volumes
+    template: templates/driver.yaml
+    asserts:
+      - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: conf, mountPath: /etc/spark-connect, readOnly: true}}
+      - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: tmp, mountPath: /tmp}}
+      - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: spark-local, mountPath: /var/data/spark-local}}
+      - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: work-dir, mountPath: /opt/spark/work-dir}}
+      - contains: {path: spec.template.spec.volumes, content: {name: conf, configMap: {name: RELEASE-NAME-spark-connect-conf}}}
+      - contains: {path: spec.template.spec.volumes, content: {name: tmp, emptyDir: {}}}
+      - contains: {path: spec.template.spec.volumes, content: {name: spark-local, emptyDir: {}}}
+      - contains: {path: spec.template.spec.volumes, content: {name: work-dir, emptyDir: {}}}
+  - it: sets resources without a cpu limit
+    template: templates/driver.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].resources.requests.cpu', value: 1000m}
+      - equal: {path: 'spec.template.spec.containers[0].resources.requests.memory', value: 1536Mi}
+      - equal: {path: 'spec.template.spec.containers[0].resources.limits.memory', value: 1536Mi}
+      - notExists: {path: 'spec.template.spec.containers[0].resources.limits.cpu'}
+      - notExists: {path: 'spec.template.spec.containers[0].resources.requests["ephemeral-storage"]'}
+  - it: sums heap and overhead
+    template: templates/driver.yaml
+    set: {driver: {memoryMiB: 4096, memoryOverheadMiB: 1024, ephemeralStorage: 10Gi}}
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].resources.requests.memory', value: 5120Mi}
+      - equal: {path: 'spec.template.spec.containers[0].resources.limits.memory', value: 5120Mi}
+      - equal: {path: 'spec.template.spec.containers[0].resources.requests["ephemeral-storage"]', value: 10Gi}
+  - it: probes the UI port
+    template: templates/driver.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].livenessProbe.httpGet', value: {path: /, port: ui}}
+      - equal: {path: 'spec.template.spec.containers[0].livenessProbe.initialDelaySeconds', value: 60}
+      - equal: {path: 'spec.template.spec.containers[0].livenessProbe.failureThreshold', value: 6}
+      - equal: {path: 'spec.template.spec.containers[0].readinessProbe.httpGet', value: {path: /, port: ui}}
+      - equal: {path: 'spec.template.spec.containers[0].readinessProbe.initialDelaySeconds', value: 30}
+      - equal: {path: 'spec.template.spec.containers[0].readinessProbe.periodSeconds', value: 10}
+  - it: exposes the named ports
+    template: templates/driver.yaml
+    asserts:
+      - contains: {path: 'spec.template.spec.containers[0].ports', content: {name: connect, containerPort: 15002}}
+      - contains: {path: 'spec.template.spec.containers[0].ports', content: {name: ui, containerPort: 4040}}
+  - it: carries a checksum of the rendered config
+    template: templates/driver.yaml
+    asserts:
+      - matchRegex: {path: 'spec.template.metadata.annotations["checksum/config"]', pattern: '^[0-9a-f]{64}$'}
+      - equal: {path: 'spec.template.metadata.annotations["checksum/config"]', value: 5fcc83e7cce6e7cb0b22cda976ca0c8c04209b35d8ace47a96126783be2aa02e}
+  - it: changes the checksum when sparkConf changes
+    template: templates/driver.yaml
+    set: {sparkConf: {"spark.foo": bar}}
+    asserts:
+      - equal: {path: 'spec.template.metadata.annotations["checksum/config"]', value: 15908f58fc8223428e1c2db0b6d8c1addb496e798ef92b42e1ff31119071e070}
+  - it: uses the security contexts from values
+    template: templates/driver.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value: {runAsNonRoot: true, runAsUser: 185, runAsGroup: 185, fsGroup: 185, seccompProfile: {type: RuntimeDefault}}
+      - equal:
+          path: 'spec.template.spec.containers[0].securityContext'
+          value: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+  - it: passes scheduling and extras through
+    template: templates/driver.yaml
+    set:
+      imagePullSecrets: [{name: pull}]
+      dnsConfig: {nameservers: [1.1.1.1]}
+      commonPodAnnotations: {a: "1"}
+      commonPodLabels: {l: "1"}
+      driver:
+        podAnnotations: {b: "2"}
+        podLabels: {m: "2"}
+        env: [{name: FOO, value: bar}]
+        volumes: [{name: extra, emptyDir: {}}]
+        volumeMounts: [{name: extra, mountPath: /extra}]
+        nodeSelector: {disk: ssd}
+        affinity: {nodeAffinity: {}}
+        tolerations: [{key: k, operator: Exists}]
+        topologySpreadConstraints: [{maxSkew: 1, topologyKey: zone, whenUnsatisfiable: DoNotSchedule}]
+        priorityClassName: high
+    asserts:
+      - equal: {path: spec.template.spec.imagePullSecrets, value: [{name: pull}]}
+      - equal: {path: spec.template.spec.dnsConfig, value: {nameservers: [1.1.1.1]}}
+      - equal: {path: spec.template.metadata.annotations.a, value: "1"}
+      - equal: {path: spec.template.metadata.annotations.b, value: "2"}
+      - equal: {path: spec.template.metadata.labels.l, value: "1"}
+      - equal: {path: spec.template.metadata.labels.m, value: "2"}
+      - contains: {path: 'spec.template.spec.containers[0].env', content: {name: FOO, value: bar}}
+      - contains: {path: spec.template.spec.volumes, content: {name: extra, emptyDir: {}}}
+      - contains: {path: 'spec.template.spec.containers[0].volumeMounts', content: {name: extra, mountPath: /extra}}
+      - equal: {path: spec.template.spec.nodeSelector, value: {disk: ssd}}
+      - exists: {path: spec.template.spec.affinity}
+      - equal: {path: spec.template.spec.tolerations, value: [{key: k, operator: Exists}]}
+      - exists: {path: spec.template.spec.topologySpreadConstraints}
+      - equal: {path: spec.template.spec.priorityClassName, value: high}

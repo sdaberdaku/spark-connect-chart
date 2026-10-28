@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "spark-connect.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  # Only the driver pod: executors carry the same name and instance labels.
+  selector:
+    {{- include "spark-connect.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: driver
+  ports:
+    - name: connect
+      port: {{ include "spark-connect.num" .Values.service.ports.connect }}
+      targetPort: connect
+      appProtocol: kubernetes.io/h2c
+    - name: ui
+      port: {{ include "spark-connect.num" .Values.service.ports.ui }}
+      targetPort: ui

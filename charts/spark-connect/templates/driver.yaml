@@ -1,0 +1,129 @@
+{{- $name := include "spark-connect.nameWith" (list . "driver") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: driver
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "spark-connect.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: driver
+  template:
+    metadata:
+      labels:
+        {{- include "spark-connect.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: driver
+        {{- with .Values.commonPodLabels }}{{ toYaml . | nindent 8 }}{{ end }}
+        {{- with .Values.driver.podLabels }}{{ toYaml . | nindent 8 }}{{ end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.commonPodAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+        {{- with .Values.driver.podAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+    spec:
+      serviceAccountName: {{ include "spark-connect.driverServiceAccountName" . }}
+      securityContext:
+        {{- include "spark-connect.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.driver.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.driver.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.driver.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.driver.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.driver.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: driver
+          image: {{ include "spark-connect.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "spark-connect.containerSecurityContext" . | nindent 12 }}
+          command: [/opt/entrypoint.sh]
+          # Kubernetes expands $(VAR) in args; there is no shell.
+          args:
+            - /opt/spark/sbin/start-connect-server.sh
+            - --conf
+            - spark.driver.host=$(SPARK_DRIVER_POD_IP)
+            - --conf
+            - spark.kubernetes.driver.pod.name=$(SPARK_DRIVER_POD_NAME)
+          env:
+            - name: SPARK_DRIVER_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SPARK_DRIVER_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - {name: SPARK_CONF_DIR, value: /etc/spark-connect}
+            - {name: SPARK_NO_DAEMONIZE, value: "true"}
+            - {name: SPARK_LOG_DIR, value: /tmp/spark-logs}
+            - {name: SPARK_PID_DIR, value: /tmp}
+            {{- with .Values.driver.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - {name: connect, containerPort: {{ include "spark-connect.num" .Values.service.ports.connect }}}
+            - {name: ui, containerPort: {{ include "spark-connect.num" .Values.service.ports.ui }}}
+          resources:
+            requests:
+              cpu: {{ .Values.driver.cpuRequest | quote }}
+              memory: {{ add (int64 .Values.driver.memoryMiB) (int64 .Values.driver.memoryOverheadMiB) }}Mi
+              {{- with .Values.driver.ephemeralStorage }}
+              ephemeral-storage: {{ . | quote }}
+              {{- end }}
+            limits:
+              memory: {{ add (int64 .Values.driver.memoryMiB) (int64 .Values.driver.memoryOverheadMiB) }}Mi
+          livenessProbe:
+            httpGet: {path: /, port: ui}
+            {{- toYaml .Values.driver.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /, port: ui}
+            {{- toYaml .Values.driver.readinessProbe | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: [/opt/spark/sbin/stop-connect-server.sh]
+          volumeMounts:
+            - {name: conf, mountPath: /etc/spark-connect, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: spark-local, mountPath: /var/data/spark-local}
+            - {name: work-dir, mountPath: /opt/spark/work-dir}
+            {{- with .Values.driver.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: conf
+          configMap:
+            name: {{ include "spark-connect.nameWith" (list . "conf") }}
+        - {name: tmp, emptyDir: {}}
+        - {name: spark-local, emptyDir: {}}
+        - {name: work-dir, emptyDir: {}}
+        {{- with .Values.driver.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

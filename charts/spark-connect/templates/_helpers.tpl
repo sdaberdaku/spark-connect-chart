@@ -15,6 +15,12 @@
 {{- end }}
 {{- end }}
 
+{{/* fullname plus a suffix, with the fullname shortened so the result stays within 63 characters. Usage: include "spark-connect.nameWith" (list . "driver") */}}
+{{- define "spark-connect.nameWith" -}}
+{{- $suffix := index . 1 }}
+{{- printf "%s-%s" (include "spark-connect.fullname" (index . 0) | trunc (int (sub 62 (len $suffix))) | trimSuffix "-") $suffix }}
+{{- end }}
+
 {{- define "spark-connect.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
@@ -37,7 +43,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "spark-connect.driverServiceAccountName" -}}
 {{- if .Values.serviceAccount.driver.create }}
-{{- default (printf "%s-driver" (include "spark-connect.fullname" .)) .Values.serviceAccount.driver.name }}
+{{- default (include "spark-connect.nameWith" (list . "driver")) .Values.serviceAccount.driver.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.driver.name }}
 {{- end }}
@@ -45,7 +51,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "spark-connect.executorServiceAccountName" -}}
 {{- if .Values.serviceAccount.executor.create }}
-{{- default (printf "%s-executor" (include "spark-connect.fullname" .)) .Values.serviceAccount.executor.name }}
+{{- default (include "spark-connect.nameWith" (list . "executor")) .Values.serviceAccount.executor.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.executor.name }}
 {{- end }}

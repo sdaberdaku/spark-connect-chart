@@ -1,0 +1,13 @@
+suite: long names
+templates:
+  - templates/driver.yaml
+  - templates/service.yaml
+  - templates/serviceaccounts.yaml
+  - templates/rbac.yaml
+  - templates/configmap.yaml
+release:
+  name: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij
+tests:
+  - it: keeps every object name within 63 characters
+    asserts:
+      - matchRegex: {path: metadata.name, pattern: '^.{1,63}$'}

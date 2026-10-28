@@ -1,0 +1,9 @@
+Spark Connect is running in namespace {{ .Release.Namespace }}.
+
+Reach it from your machine:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "spark-connect.fullname" . }} {{ include "spark-connect.num" .Values.service.ports.connect }}:{{ include "spark-connect.num" .Values.service.ports.connect }}
+
+Then connect a client with:
+
+  sc://localhost:{{ include "spark-connect.num" .Values.service.ports.connect }}

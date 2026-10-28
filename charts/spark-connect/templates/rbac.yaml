@@ -1,0 +1,41 @@
+{{- if .Values.serviceAccount.driver.create }}
+{{- $name := include "spark-connect.nameWith" (list . "driver") }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: driver
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, get, list, watch, delete, deletecollection, patch]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [create, get, list, watch, delete, deletecollection]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create, get, list, watch, delete, deletecollection]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [create, get, list, watch, delete, deletecollection]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: driver
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "spark-connect.driverServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
