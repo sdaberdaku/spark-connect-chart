@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["github-actions", "pip_requirements", "custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Pins annotated with a '# renovate: datasource=... depName=...' comment, on the next line or after one helm-docs comment line",
+      "managerFilePatterns": [
+        "/^Makefile$/",
+        "/^e2e/run\\.sh$/",
+        "/^charts/spark-connect/Chart\\.yaml$/",
+        "/^charts/spark-connect/values\\.yaml$/",
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\n(?:[ \\t]*#[^\\n]*\\n)?[^\\n]*?(?<currentValue>v?\\d[\\w.+-]*)(@(?<currentDigest>sha256:[a-f0-9]+))?"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Spark versions in spark-versions.json",
+      "managerFilePatterns": ["/^spark-versions\\.json$/"],
+      "matchStrings": ["\"spark\": \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "apache/spark"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": ["apache/spark"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
+    },
+    {
+      "matchDepNames": ["apache/spark"],
+      "groupName": "spark",
+      "schedule": ["at any time"]
+    },
+    {
+      "matchFileNames": ["charts/spark-connect/**"],
+      "bumpVersions": [
+        {
+          "name": "Chart version",
+          "filePatterns": ["{{packageFileDir}}/Chart.yaml"],
+          "matchStrings": ["version:\\s(?<version>\\S+)"],
+          "bumpType": "patch"
+        }
+      ]
+    }
+  ],
+  "automerge": true,
+  "platformAutomerge": true,
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"]
+}

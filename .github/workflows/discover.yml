@@ -1,0 +1,129 @@
+# Looks for new Spark lines on Docker Hub once a day and opens a pull request that adds them to
+# spark-versions.json and bumps the chart. The pull request triggers ci.yml itself (a ci.yml dispatch is
+# the fallback when no run shows up) and auto-merges once `ci-ok` is green. Each run also repairs an open
+# discovery pull request (rebase when behind, close and redo when conflicting) and dispatches release.yml
+# when the chart version on main has no tag yet.
+name: discover
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only print what would be added
+        type: boolean
+        default: false
+
+concurrency:
+  group: discover
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Dispatch the release when the chart version on main is untagged
+        run: |
+          set -euo pipefail
+          # release.yml arrives with the release automation; nothing to dispatch before that.
+          [ -f .github/workflows/release.yml ] || exit 0
+          version=$(gh api "repos/$GITHUB_REPOSITORY/contents/charts/spark-connect/Chart.yaml?ref=main" -q .content | base64 -d | sed -n 's/^version: //p')
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" >/dev/null 2>&1; then
+            echo "Tag v$version is missing: dispatching release.yml on main."
+            gh workflow run release.yml --ref main
+          fi
+      - name: Repair an open discovery pull request or clear stale branches
+        id: open
+        run: |
+          set -euo pipefail
+          # Only same-repo PRs: a fork PR with a discover/ head branch must not break this step.
+          # Close and redo only when every commit is from the bot; otherwise fail so the owner is emailed.
+          # A commit counts as the bot's when the bot authored it and the bot or GitHub (a rebase) committed it.
+          bot='41898282+github-actions[bot]@users.noreply.github.com'
+          redo() {
+            number=$(gh pr view "$1" --json number -q .number)
+            others=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number/commits" --paginate \
+              --jq ".[] | select(.commit.author.email != \"$bot\" or (.commit.committer.email != \"$bot\" and .commit.committer.email != \"noreply@github.com\")) | .sha")
+            if [ -z "$others" ]; then
+              gh pr close "$1" --delete-branch
+            else
+              echo "::error::Discovery pull request on $1 ($2) has commits that are not from github-actions[bot]; fix or close it by hand."
+              exit 1
+            fi
+          }
+          skip=false
+          # Assigned on its own line so that a failing gh call stops the step under set -e.
+          branches=$(gh pr list --state open --json headRefName,isCrossRepository --jq '.[] | select((.isCrossRepository|not) and (.headRefName|startswith("discover/"))) | .headRefName')
+          for branch in $branches; do
+            state=$(gh pr view "$branch" --json mergeStateStatus -q .mergeStateStatus)
+            echo "Open discovery pull request on $branch ($state)."
+            case "$state" in
+              DIRTY)
+                redo "$branch" "conflicting"
+                continue
+                ;;
+              BEHIND)
+                old=$(gh pr view "$branch" --json headRefOid -q .headRefOid)
+                if ! gh pr update-branch "$branch" --rebase; then
+                  redo "$branch" "rebase refused"
+                  continue
+                fi
+                for _ in $(seq 12); do
+                  [ "$(gh pr view "$branch" --json headRefOid -q .headRefOid)" != "$old" ] && break
+                  sleep 5
+                done
+                ;;
+            esac
+            scripts/ensure_ci.sh "$branch"
+            gh pr merge "$branch" --auto --squash --delete-branch
+            skip=true
+          done
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          if [ "$skip" = false ]; then
+            for branch in $(git ls-remote --heads origin 'discover/*' | sed 's#.*refs/heads/##'); do
+              echo "Deleting stale branch $branch."
+              git push origin --delete "$branch"
+            done
+          fi
+      - name: Discover new lines
+        id: found
+        if: steps.open.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          python scripts/discover.py ${{ inputs.dry_run && '--dry-run' || '' }} > additions.txt
+          cat additions.txt
+          if [ -s additions.txt ] && [ "${{ inputs.dry_run }}" != "true" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open the pull request
+        if: steps.found.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch="discover/$(date -u +%Y%m%d)"
+          summary=$(sed 's/^spark /Spark /' additions.txt | awk '{printf "%s%s", (NR>1?", ":""), $0}')
+          git switch -c "$branch"
+          git add spark-versions.json charts/spark-connect/Chart.yaml
+          git commit -m "feat: add $summary"
+          git push origin "$branch"
+          {
+            echo "Docker Hub has new lines: $summary."
+            echo
+            echo "CI decides: it runs the end-to-end test on every Spark line, and this pull request merges itself when it is green. A line that fails has to be fixed or trimmed by hand before the merge."
+          } > body.md
+          gh pr create --base main --head "$branch" --title "feat: add $summary" --body-file body.md
+          scripts/ensure_ci.sh "$branch"
+          gh pr merge "$branch" --auto --squash --delete-branch

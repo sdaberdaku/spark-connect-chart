@@ -1,0 +1,91 @@
+# Static checks, docs build and an end-to-end run on kind for every Spark line in spark-versions.json.
+# Draft PRs skip everything, so `ci-ok` is red on a draft on purpose: mark the PR ready for review.
+# `ci-ok` is the single required check.
+name: ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: matrix
+        run: echo "matrix=$(jq -c . spark-versions.json)" >> "$GITHUB_OUTPUT"
+
+  static:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: make tools check
+      - run: python3 -m unittest discover -s tests
+      - name: Chart lint with chart-testing
+        # ct compares against main, so it only makes sense on a branch.
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        run: make ct-lint
+
+  docs:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - id: site
+        run: test -f mkdocs.yml && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v7
+        if: steps.site.outputs.present == 'true'
+        with:
+          python-version: "3.14"
+      - if: steps.site.outputs.present == 'true'
+        run: make tools docs
+      - if: steps.site.outputs.present == 'true'
+        run: pip install -r docs/site/requirements.txt
+      - if: steps.site.outputs.present == 'true'
+        run: mkdocs build --strict
+
+  e2e:
+    name: e2e (spark ${{ matrix.spark }})
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: make tools
+      - run: make e2e SPARK_VERSION=${{ matrix.spark }}
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-out-${{ matrix.spark }}
+          path: e2e/out
+          if-no-files-found: ignore
+
+  ci-ok:
+    needs: [static, docs, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.static.result }}" = success && test "${{ needs.docs.result }}" = success && test "${{ needs.e2e.result }}" = success
