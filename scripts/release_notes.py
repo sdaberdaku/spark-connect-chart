@@ -40,7 +40,7 @@ def main(version, prev_tag, out_dir, changelog_text, subjects):
         f.write("\n".join(lines) + "\n")
     # JSON-style quoting is valid YAML, so every bullet is a safe plain string.
     with open(os.path.join(out_dir, "changes.yaml"), "w") as f:
-        f.write("".join(f"- {json.dumps(b)}\n" for b in bullets))
+        f.write("".join(f"- {json.dumps(b, ensure_ascii=False)}\n" for b in bullets))
 
 
 if __name__ == "__main__":

@@ -1,26 +1,29 @@
 # Changelog
 
-Changes made by hand are listed here. Releases created by automation (Spark and tooling updates) get their notes from the merged pull requests, which you can read on the [GitHub Releases](https://github.com/sdaberdaku/spark-connect-chart/releases) page and on Artifact Hub.
+Changes made by hand are listed here, one line per bullet. Releases created by automation (Spark and tooling updates) get their notes from the merged pull requests, which you can read on the [GitHub Releases](https://github.com/sdaberdaku/spark-connect-chart/releases) page and on Artifact Hub.
 
 ## 1.1.1 - 2026-10-28
 
 - Add the Artifact Hub repository ID to `artifacthub-repo.yml`, the badge to both READMEs and a link on the docs home page.
-- Reword the chart description: executors are static pods started by the driver, not on demand.
+- Change the chart description to say that the driver starts the executor pods.
 - Name the real value path in newline errors (`historyServer.logDirectory`) and say "Spark properties" instead of "spark-defaults.conf".
 - Reject newlines in `driver.javaOptions`, `executor.javaOptions` and `packages` entries, with the value path in the error.
 - Add unit tests for the auth Secret lookup on a live Secret without data and with a token.
-- Docs: local `spark.jars` paths reach executors through the driver file server, and the token works over port-forward and behind a TLS-terminating Ingress or Gateway.
+- Fix the docs: local `spark.jars` paths reach executors through the driver file server, and the token works over port-forward and behind a TLS-terminating Ingress or Gateway.
 
 ## 1.1.0 - 2026-10-28
 
-- Renovate opens patch pull requests for older Spark rows again.
-- The token works over port-forward, and the install notes print the connection string.
-- Nested `sparkConf` maps are rejected.
-- The driver keeps its Role when an existing ServiceAccount is used.
+- Open Renovate patch pull requests for older Spark rows again.
+- Make the token work over port-forward, and print the connection string in the install notes.
+- Reject nested `sparkConf` maps.
+- Keep the driver Role when an existing ServiceAccount is used.
+- Require `serviceAccount.driver.name` when `serviceAccount.driver.create` is false; the render fails without it.
+- Fail the render when an enabled Ingress has no hosts or no paths.
+- Fail the render when a `sparkConf` value contains a newline.
 - Add an executor image override.
 - Add scheduling values for the history server and the restart job.
-- The release workflow only treats a missing tag as unreleased.
-- Docs fixes.
+- Make the release workflow treat only a missing tag as unreleased.
+- Fix the docs.
 
 ## 1.0.0 - 2026-10-28
 

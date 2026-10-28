@@ -103,8 +103,8 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          gh workflow run pages.yml --ref main
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release create "v$VERSION" "dist/spark-connect-$VERSION.tgz" \
               --target "$GITHUB_SHA" --title "spark-connect $VERSION" --notes-file "$RUNNER_TEMP/notes/notes.md"
           fi
+          gh workflow run pages.yml --ref main || echo "::warning::could not refresh the docs site"

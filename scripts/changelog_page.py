@@ -17,6 +17,8 @@ HEAD = (
 def render(releases):
     page = HEAD
     for r in releases:
+        if r.get("draft"):
+            continue
         page += f"\n## {r.get('name') or r['tag_name']}\n\n{r['published_at'][:10]}\n\n{(r.get('body') or '').strip()}\n"
     return page
 
@@ -33,7 +35,7 @@ if __name__ == "__main__":
     try:
         page = render(fetch())
     except (OSError, ValueError, KeyError) as e:
-        print(f"changelog_page: using CHANGELOG.md ({e})")
+        print(f"::warning::changelog_page: could not read the GitHub Releases, using CHANGELOG.md ({e})")
         with open(os.path.join(ROOT, "CHANGELOG.md")) as f:
             page = f.read()
     with open(OUT, "w") as f:

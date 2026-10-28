@@ -21,6 +21,10 @@ class RenderTest(unittest.TestCase):
     def test_missing_body(self):
         self.assertIn("## v1.0.0\n\n2026-10-28\n", render(RELEASES))
 
+    def test_draft_skipped(self):
+        draft = {"name": "x", "tag_name": "v9", "published_at": None, "draft": True, "body": ""}
+        self.assertNotIn("## x", render([draft] + RELEASES))
+
 
 if __name__ == "__main__":
     unittest.main()

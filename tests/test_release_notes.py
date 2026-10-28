@@ -84,6 +84,11 @@ class MainTest(unittest.TestCase):
         parsed = [json.loads(line[2:]) for line in changes.splitlines()]
         self.assertEqual(parsed, ["First fix", 'Second "quoted" fix'])
 
+    def test_changes_yaml_keeps_non_ascii_literal(self):
+        _, changes = self.run_main("1.3.0", "v1.2.0", changelog="## 1.3.0 - 2026-10-29\n\n- Ship \U0001F680 now\n")
+        self.assertIn("\U0001F680", changes)
+        self.assertNotIn("\\ud83d", changes)
+
     def test_no_notes_source_still_writes_files(self):
         notes, changes = self.run_main("1.2.0", "v1.1.0")
         self.assertEqual(changes, "")
