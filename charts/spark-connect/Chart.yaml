@@ -1,0 +1,21 @@
+apiVersion: v2
+name: spark-connect
+description: Apache Spark Connect server on Kubernetes, with executors started on demand
+type: application
+version: 1.0.0
+# renovate: datasource=docker depName=apache/spark
+appVersion: "4.2.0"
+kubeVersion: ">=1.29.0-0"
+home: https://sdaberdaku.github.io/spark-connect-chart/
+sources:
+  - https://github.com/sdaberdaku/spark-connect-chart
+maintainers:
+  - name: Sebastian Daberdaku
+    email: sebastiandaberdaku@gmail.com
+keywords:
+  - spark
+  - spark-connect
+  - kubernetes
+  - data
+annotations:
+  artifacthub.io/license: Apache-2.0

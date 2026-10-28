@@ -1,0 +1,107 @@
+{{- $fullname := include "spark-connect.fullname" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-conf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+data:
+  spark-defaults.conf: |
+    {{- range $k, $v := include "spark-connect.sparkDefaults" . | fromYaml }}
+    {{ $k }} {{ $v }}
+    {{- end }}
+  {{- if .Values.pools }}
+  pools.xml: |
+    <?xml version="1.0"?>
+    <allocations>
+    {{- range .Values.pools }}
+      <pool name="{{ .name }}">
+        <schedulingMode>{{ .schedulingMode | default "FAIR" }}</schedulingMode>
+        <weight>{{ include "spark-connect.num" (.weight | default 1) }}</weight>
+        <minShare>{{ include "spark-connect.num" (.minShare | default 0) }}</minShare>
+      </pool>
+    {{- end }}
+    </allocations>
+  {{- end }}
+  {{- if .Values.log4j2 }}
+  log4j2.properties: |-
+    {{- .Values.log4j2 | nindent 4 }}
+  {{- end }}
+  {{- if .Values.metrics.enabled }}
+  metrics.properties: |
+    *.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet
+    *.sink.prometheusServlet.path={{ .Values.metrics.path }}
+    master.sink.prometheusServlet.path={{ .Values.metrics.path }}
+    applications.sink.prometheusServlet.path={{ .Values.metrics.path }}
+  {{- end }}
+  executor-pod-template.yaml: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        {{- include "spark-connect.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: executor
+        {{- with .Values.commonPodLabels }}{{ toYaml . | nindent 8 }}{{ end }}
+        {{- with .Values.executor.podLabels }}{{ toYaml . | nindent 8 }}{{ end }}
+      {{- if or .Values.commonPodAnnotations .Values.executor.podAnnotations }}
+      annotations:
+        {{- with .Values.commonPodAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+        {{- with .Values.executor.podAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "spark-connect.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.executor.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.executor.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.executor.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.executor.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.executor.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: executor
+          securityContext:
+            {{- include "spark-connect.containerSecurityContext" . | nindent 12 }}
+          {{- with .Values.executor.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.executor.ephemeralStorage }}
+          resources:
+            requests:
+              ephemeral-storage: {{ . | quote }}
+          {{- end }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: work-dir, mountPath: /opt/spark/work-dir}
+            {{- with .Values.executor.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - {name: tmp, emptyDir: {}}
+        - {name: work-dir, emptyDir: {}}
+        {{- with .Values.executor.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

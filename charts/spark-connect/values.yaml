@@ -1,0 +1,299 @@
+image:
+  # -- Image repository for the driver and the executors. Stock Apache Spark images work.
+  repository: apache/spark
+  # -- Image tag. Defaults to the chart appVersion (the Spark version).
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+# -- Image pull secrets for the driver, executor and history server pods
+imagePullSecrets: []
+# -- Override the chart name used in resource names
+nameOverride: ""
+# -- Override the full name used in resource names
+fullnameOverride: ""
+# -- Annotations added to every pod the chart or the driver creates
+commonPodAnnotations: {}
+# -- Labels added to every pod the chart or the driver creates
+commonPodLabels: {}
+
+# -- Spark properties (spark-defaults.conf), as a map. Values are templated with tpl and keys are sorted.
+# Keys the chart sets itself fail the render and name the value to use instead.
+sparkConf:
+  # Spark 4.2 enables Arrow for Python UDFs and the stock images have no pyarrow.
+  # Set to "true" if your image has pyarrow.
+  spark.sql.execution.pythonUDF.arrow.enabled: "false"
+# -- Maven coordinates, rendered as spark.jars.packages
+packages: []
+# -- FAIR scheduler pools, rendered to pools.xml when not empty. Each item: name, schedulingMode (FAIR), weight, minShare
+pools: []
+# -- Full log4j2.properties text. Empty keeps the image default.
+log4j2: ""
+
+metrics:
+  # -- Write metrics.properties with the Prometheus servlet sink
+  enabled: false
+  # -- Path of the Prometheus servlet on the UI port
+  path: /metrics/prometheus
+  serviceMonitor:
+    # -- Create a ServiceMonitor (needs metrics.enabled)
+    enabled: false
+    # -- Extra labels for the ServiceMonitor
+    labels: {}
+    # -- Scrape interval
+    interval: 30s
+    # -- Relabelings
+    relabelings: []
+    # -- Metric relabelings
+    metricRelabelings: []
+  prometheusRule:
+    # -- Create a PrometheusRule
+    enabled: false
+    # -- Extra labels for the PrometheusRule
+    labels: {}
+    # -- Rule groups
+    groups: []
+
+auth:
+  # -- Require a pre-shared token on the Connect endpoint
+  enabled: false
+  # -- Existing Secret holding the token. Empty generates one.
+  existingSecret: ""
+  # -- Key of the token in the Secret
+  secretKey: token
+
+driver:
+  # -- Driver cores (spark.driver.cores)
+  cores: 1
+  # -- Driver pod CPU request
+  cpuRequest: 1000m
+  # -- Driver heap in MiB (spark.driver.memory)
+  memoryMiB: 1024
+  # -- Driver memory overhead in MiB (spark.driver.memoryOverhead)
+  memoryOverheadMiB: 512
+  # -- Driver ephemeral-storage request, for example 10Gi. Empty sets none.
+  ephemeralStorage: ""
+  # -- Driver JVM options
+  javaOptions: "-XX:+ExitOnOutOfMemoryError -XX:+UseG1GC"
+  # -- Driver pod annotations
+  podAnnotations: {}
+  # -- Driver pod labels
+  podLabels: {}
+  # -- Extra driver environment variables
+  env: []
+  # -- Extra driver volumes
+  volumes: []
+  # -- Extra driver volume mounts
+  volumeMounts: []
+  # -- Driver node selector
+  nodeSelector: {}
+  # -- Driver affinity
+  affinity: {}
+  # -- Driver tolerations
+  tolerations: []
+  # -- Driver topology spread constraints
+  topologySpreadConstraints: []
+  # -- Driver priority class
+  priorityClassName: ""
+  # -- Driver liveness probe timings
+  livenessProbe: {initialDelaySeconds: 60, periodSeconds: 30, timeoutSeconds: 10, failureThreshold: 6}
+  # -- Driver readiness probe timings
+  readinessProbe: {initialDelaySeconds: 30, periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 6}
+
+executor:
+  # -- Number of executors (spark.executor.instances)
+  instances: 1
+  # -- Executor cores (spark.executor.cores)
+  cores: 1
+  # -- Executor pod CPU request (spark.kubernetes.executor.request.cores)
+  cpuRequest: 500m
+  # -- Executor heap in MiB (spark.executor.memory)
+  memoryMiB: 1024
+  # -- Executor memory overhead in MiB (spark.executor.memoryOverhead)
+  memoryOverheadMiB: 512
+  # -- Executor ephemeral-storage request, for example 10Gi. Empty sets none.
+  ephemeralStorage: ""
+  # -- Executor JVM options
+  javaOptions: "-XX:+ExitOnOutOfMemoryError -XX:+UseG1GC"
+  # -- Executor pod annotations
+  podAnnotations: {}
+  # -- Executor pod labels
+  podLabels: {}
+  # -- Extra executor environment variables
+  env: []
+  # -- Extra executor volumes
+  volumes: []
+  # -- Extra executor volume mounts
+  volumeMounts: []
+  # -- Executor node selector
+  nodeSelector: {}
+  # -- Executor affinity
+  affinity: {}
+  # -- Executor tolerations
+  tolerations: []
+  # -- Executor topology spread constraints
+  topologySpreadConstraints: []
+  # -- Executor priority class
+  priorityClassName: ""
+
+serviceAccount:
+  driver:
+    # -- Create the driver ServiceAccount
+    create: true
+    # -- Driver ServiceAccount name. Defaults to <fullname>-driver.
+    name: ""
+    # -- Driver ServiceAccount annotations (for example cloud workload identity)
+    annotations: {}
+  executor:
+    # -- Create the executor ServiceAccount
+    create: true
+    # -- Executor ServiceAccount name. Defaults to <fullname>-executor.
+    name: ""
+    # -- Executor ServiceAccount annotations
+    annotations: {}
+
+# -- Pod security context, shared by the driver, executors and history server
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 185
+  runAsGroup: 185
+  fsGroup: 185
+  seccompProfile:
+    type: RuntimeDefault
+# -- Container security context, shared by the driver, executors and history server
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+# -- dnsConfig for the driver, executor and history server pods
+dnsConfig: {}
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service annotations
+  annotations: {}
+  ports:
+    # -- Spark Connect gRPC port
+    connect: 15002
+    # -- Spark UI port
+    ui: 4040
+
+ingress:
+  connect:
+    # -- Expose the Connect endpoint through an Ingress
+    enabled: false
+    # -- Ingress class name
+    className: ""
+    # -- Ingress annotations
+    annotations: {}
+    # -- Hosts, each {host, paths: [{path, pathType}]}
+    hosts: []
+    # -- TLS entries
+    tls: []
+  ui:
+    # -- Expose the Spark UI through an Ingress
+    enabled: false
+    # -- Ingress class name
+    className: ""
+    # -- Ingress annotations
+    annotations: {}
+    # -- Hosts, each {host, paths: [{path, pathType}]}
+    hosts: []
+    # -- TLS entries
+    tls: []
+  historyServer:
+    # -- Expose the history server through an Ingress
+    enabled: false
+    # -- Ingress class name
+    className: ""
+    # -- Ingress annotations
+    annotations: {}
+    # -- Hosts, each {host, paths: [{path, pathType}]}
+    hosts: []
+    # -- TLS entries
+    tls: []
+
+gateway:
+  connect:
+    # -- Expose the Connect endpoint through a GRPCRoute
+    enabled: false
+    # -- Route annotations
+    annotations: {}
+    # -- Gateway parent references
+    parentRefs: []
+    # -- Route hostnames
+    hostnames: []
+  ui:
+    # -- Expose the Spark UI through an HTTPRoute
+    enabled: false
+    # -- Route annotations
+    annotations: {}
+    # -- Gateway parent references
+    parentRefs: []
+    # -- Route hostnames
+    hostnames: []
+    # -- Route matches
+    matches:
+      - path: {type: PathPrefix, value: /}
+  historyServer:
+    # -- Expose the history server through an HTTPRoute
+    enabled: false
+    # -- Route annotations
+    annotations: {}
+    # -- Gateway parent references
+    parentRefs: []
+    # -- Route hostnames
+    hostnames: []
+    # -- Route matches
+    matches:
+      - path: {type: PathPrefix, value: /}
+
+historyServer:
+  # -- Deploy a Spark history server
+  enabled: false
+  # -- Event log directory (spark.history.fs.logDirectory). Required when enabled.
+  logDirectory: ""
+  # -- Extra spark.history.* properties
+  conf: {}
+  # -- History server daemon memory (SPARK_DAEMON_MEMORY)
+  daemonMemory: 1g
+  # -- History server port
+  port: 18080
+  # -- History server resources
+  resources: {}
+  # -- History server pod annotations
+  podAnnotations: {}
+  # -- History server pod labels
+  podLabels: {}
+  # -- Extra history server environment variables
+  env: []
+  # -- Extra history server volumes
+  volumes: []
+  # -- Extra history server volume mounts
+  volumeMounts: []
+  # -- History server node selector
+  nodeSelector: {}
+  # -- History server affinity
+  affinity: {}
+  # -- History server tolerations
+  tolerations: []
+
+restart:
+  # -- Restart the driver on a schedule with a CronJob
+  enabled: false
+  # -- Cron schedule
+  schedule: "0 5 * * 6"
+  # -- Time zone of the schedule. Empty uses the cluster default.
+  timeZone: ""
+  image:
+    # -- kubectl image repository
+    repository: registry.k8s.io/kubectl
+    # renovate: datasource=docker depName=registry.k8s.io/kubectl
+    # -- kubectl image tag
+    tag: v1.37.2
+    # -- kubectl image pull policy
+    pullPolicy: IfNotPresent
+
+# -- Extra Kubernetes objects, each a map or a templated string
+extraObjects: []

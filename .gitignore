@@ -1,0 +1,7 @@
+.bin/
+site/
+e2e/out/
+__pycache__/
+charts/spark-connect/README.md
+charts/spark-connect/values.schema.json
+docs/site/values.md

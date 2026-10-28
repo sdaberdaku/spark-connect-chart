@@ -1,0 +1,124 @@
+suite: configmap
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: renders owned keys
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.master k8s://https://kubernetes.default.svc$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.namespace NAMESPACE$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.connect.grpc.binding.port 15002$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.ui.port 4040$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.executor.container.image apache/spark:4.2.0$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.authenticate.driver.serviceAccountName RELEASE-NAME-spark-connect-driver$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.authenticate.executor.serviceAccountName RELEASE-NAME-spark-connect-executor$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.executor.podTemplateFile /etc/spark-connect/executor-pod-template.yaml$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.executor.podTemplateContainerName executor$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.driver.memory 1024m$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.driver.memoryOverhead 512m$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.executor.instances 1$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.executor.request.cores 500m$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.local.dir /var/data/spark-local$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.jars.ivy /tmp/.ivy$'}
+
+  - it: renders default sparkConf
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.sql.execution.pythonUDF.arrow.enabled false$'}
+
+  - it: renders numbers and booleans plainly
+    set:
+      sparkConf: {spark.foo.count: 2, spark.foo.on: true, spark.foo.big: 100000000}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.foo.count 2$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.foo.on true$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.foo.big 100000000$'}
+
+  - it: templates sparkConf values
+    set:
+      sparkConf: {spark.foo.ns: "{{ .Release.Namespace }}"}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.foo.ns NAMESPACE$'}
+
+  - it: sorts sparkConf keys
+    set:
+      sparkConf: {spark.zzz: "1", spark.aaa: "2"}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: 'spark.aaa 2\n(.*\n)*spark.zzz 1\n'}
+
+  - it: fails on owned key
+    set:
+      sparkConf: {spark.driver.memory: 4g}
+    asserts:
+      - failedTemplate:
+          errorMessage: "sparkConf.spark.driver.memory is set by the chart; use driver.memoryMiB instead"
+
+  - it: fails on namespace key
+    set:
+      sparkConf: {spark.kubernetes.namespace: other}
+    asserts:
+      - failedTemplate:
+          errorMessage: "sparkConf.spark.kubernetes.namespace is set by the chart; use the release namespace instead"
+
+  - it: renders packages
+    set:
+      packages: [a:b:1, c:d:2]
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.jars.packages a:b:1,c:d:2$'}
+
+  - it: omits packages when empty
+    asserts:
+      - notMatchRegex: {path: 'data["spark-defaults.conf"]', pattern: 'spark.jars.packages'}
+
+  - it: renders pools
+    set:
+      pools: [{name: large, schedulingMode: FAIR, weight: 2, minShare: 1}]
+    asserts:
+      - matchRegex: {path: 'data["pools.xml"]', pattern: '<pool name="large">'}
+      - matchRegex: {path: 'data["pools.xml"]', pattern: '<weight>2</weight>'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.scheduler.allocation.file /etc/spark-connect/pools.xml$'}
+
+  - it: omits pools when empty
+    asserts:
+      - notExists: {path: 'data["pools.xml"]'}
+      - notMatchRegex: {path: 'data["spark-defaults.conf"]', pattern: 'spark.scheduler.allocation.file'}
+
+  - it: renders log4j2
+    set:
+      log4j2: "rootLogger.level = warn"
+    asserts:
+      - equal: {path: 'data["log4j2.properties"]', value: "rootLogger.level = warn"}
+
+  - it: omits log4j2 when empty
+    asserts:
+      - notExists: {path: 'data["log4j2.properties"]'}
+
+  - it: renders metrics
+    set:
+      metrics.enabled: true
+    asserts:
+      - matchRegex: {path: 'data["metrics.properties"]', pattern: '\*.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet'}
+      - matchRegex: {path: 'data["metrics.properties"]', pattern: '\*.sink.prometheusServlet.path=/metrics/prometheus'}
+
+  - it: omits metrics when disabled
+    asserts:
+      - notExists: {path: 'data["metrics.properties"]'}
+
+  - it: renders the executor pod template
+    set:
+      executor:
+        nodeSelector: {pool: spark}
+        tolerations: [{key: spark, operator: Exists}]
+        affinity: {podAntiAffinity: {}}
+    asserts:
+      - equal: {path: 'data["executor-pod-template.yaml"]', value: ""}
+        not: true
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'kind: Pod'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'name: executor'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'automountServiceAccountToken: false'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'runAsUser: 185'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'readOnlyRootFilesystem: true'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'emptyDir'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'mountPath: /tmp'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'app.kubernetes.io/component: executor'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'pool: spark'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'key: spark'}
+      - matchRegex: {path: 'data["executor-pod-template.yaml"]', pattern: 'podAntiAffinity'}
