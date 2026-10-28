@@ -8,6 +8,8 @@ Install it from the OCI registry:
 helm install spark-connect oci://ghcr.io/sdaberdaku/charts/spark-connect
 ```
 
+The chart is also listed on [Artifact Hub](https://artifacthub.io/packages/helm/spark-connect/spark-connect).
+
 With no values this runs the stock `apache/spark` image of the chart's `appVersion`, with one executor, and the Connect endpoint on port 15002 of a ClusterIP Service.
 
 ## What the chart provides
