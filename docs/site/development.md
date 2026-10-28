@@ -11,7 +11,7 @@ All tools are pinned in the `Makefile` and downloaded into `.bin/` by `make tool
 | `make docs` | Generate the chart README with helm-docs and copy it to `docs/site/values.md`. |
 | `make lint` | `helm lint`. |
 | `make unittest` | helm-unittest suites. |
-| `make kubeconform` | Validate the rendered manifests and the executor pod template for the default and all-on values, on the last three Kubernetes minors. |
+| `make kubeconform` | Validate the rendered manifests and the executor pod template for the default and all-on values, on the chart's `kubeVersion` floor (1.29) and the last three Kubernetes minors. |
 | `make ct-lint` | chart-testing lint in Docker (it enforces the chart version bump against `main`). |
 | `make versions-check` | Check that `appVersion` equals the highest Spark version in `spark-versions.json`. |
 | `make check` | `lint`, `unittest`, `kubeconform` and `versions-check`. |
