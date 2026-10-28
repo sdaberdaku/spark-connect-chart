@@ -28,7 +28,15 @@ export HELM_PLUGINS := $(BIN)/plugins
 export PATH := $(BIN):$(PATH)
 HELM := $(BIN)/helm
 
-.PHONY: tools lint unittest
+# Kubernetes minors validated by kubeconform: the last three in its default schema repo
+# (yannh/kubernetes-json-schema; check it has the new minor before bumping).
+K8S_VERSIONS := 1.35.0 1.36.0 1.37.0
+CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+# renovate: datasource=docker depName=quay.io/helmpack/chart-testing
+CT_IMAGE ?= quay.io/helmpack/chart-testing:latest
+CT_ARGS ?=
+
+.PHONY: tools schema docs lint unittest kubeconform ct-lint package versions-check check
 tools: $(BIN)/.tools-$(HELM_VERSION)-$(HELM_UNITTEST_VERSION)-$(KIND_VERSION)-$(KUBECTL_VERSION)-$(HELM_DOCS_VERSION)-$(KUBECONFORM_VERSION)-$(HELM_SCHEMA_VERSION)
 
 $(BIN)/.tools-%:
@@ -44,8 +52,38 @@ $(BIN)/.tools-%:
 	chmod +x $(BIN)/kind $(BIN)/kubectl
 	touch $@
 
-lint: tools
+schema: tools
+	cd $(CHART) && $(HELM) schema -f values.yaml --draft 7 --schema-root.additional-properties=false -o values.schema.json
+
+docs: tools
+	helm-docs --chart-search-root charts
+	mkdir -p docs/site
+	cp $(CHART)/README.md docs/site/values.md
+
+lint: tools schema docs
 	$(HELM) lint $(CHART)
 
-unittest: tools
+unittest: tools schema docs
 	$(HELM) unittest $(CHART)
+
+# Validates the rendered manifests and the executor pod template (a Pod inside a ConfigMap) for the default and all-on values.
+kubeconform: tools schema docs
+	@set -e; for v in $(CHART)/ci/default-values.yaml $(CHART)/ci/all-on-values.yaml; do \
+	  $(HELM) template x $(CHART) -f $$v > $(BIN)/rendered.yaml; \
+	  uv run --quiet --with pyyaml python3 -I hack/executor-template.py < $(BIN)/rendered.yaml > $(BIN)/executor.yaml; \
+	  for k in $(K8S_VERSIONS); do \
+	    echo "== $$v on Kubernetes $$k"; \
+	    kubeconform -strict -summary -kubernetes-version $$k -schema-location default -schema-location '$(CRD_SCHEMAS)' $(BIN)/rendered.yaml $(BIN)/executor.yaml; \
+	  done; \
+	done
+
+ct-lint: tools schema docs
+	docker run --rm -v $(ROOT):/work -w /work $(CT_IMAGE) sh -c 'git config --global --add safe.directory /work && ct lint --config ct.yaml $(CT_ARGS)'
+
+package: tools schema docs
+	$(HELM) package $(CHART) -d dist/
+
+versions-check:
+	@python3 -c "import json,re;t=lambda v:tuple(map(int,v.split('.')));a=re.search(r'^appVersion: \"?([\d.]+)',open('$(CHART)/Chart.yaml').read(),re.M).group(1);m=max((e['spark'] for e in json.load(open('spark-versions.json'))),key=t);assert a==m,f'appVersion {a} != highest spark {m}';print('appVersion',a,'ok')"
+
+check: lint unittest kubeconform versions-check

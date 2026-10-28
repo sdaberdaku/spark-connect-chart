@@ -1,0 +1,76 @@
+auth:
+  enabled: true
+pools:
+  - name: default
+    schedulingMode: FAIR
+    weight: 1
+    minShare: 0
+log4j2: |
+  rootLogger.level = info
+  rootLogger.appenderRef.stdout.ref = console
+  appender.console.type = Console
+  appender.console.name = console
+  appender.console.layout.type = PatternLayout
+  appender.console.layout.pattern = %d{ISO8601} %p %c: %m%n
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+    groups:
+      - name: spark-connect
+        rules:
+          - alert: SparkConnectDown
+            expr: up{job="spark-connect"} == 0
+            for: 5m
+ingress:
+  connect:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: connect.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+  ui:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: ui.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+  historyServer:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: history.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+gateway:
+  connect:
+    enabled: true
+    parentRefs: [{name: eg, sectionName: https}]
+    hostnames: [connect-gw.example.com]
+  ui:
+    enabled: true
+    parentRefs: [{name: eg, sectionName: https}]
+    hostnames: [ui-gw.example.com]
+  historyServer:
+    enabled: true
+    parentRefs: [{name: eg, sectionName: https}]
+    hostnames: [history-gw.example.com]
+historyServer:
+  enabled: true
+  logDirectory: file:/spark-events
+restart:
+  enabled: true
+extraObjects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: extra
+    data:
+      key: value

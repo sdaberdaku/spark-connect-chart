@@ -1,0 +1,13 @@
+# {{ template "chart.name" . }}
+
+{{ template "chart.description" . }}
+
+Install the chart from the OCI registry:
+
+```console
+helm install spark-connect oci://ghcr.io/sdaberdaku/charts/spark-connect --version {{ template "chart.version" . }}
+```
+
+Guides, examples and the full reference are on the documentation site: https://sdaberdaku.github.io/spark-connect-chart/
+
+{{ template "chart.valuesSection" . }}
