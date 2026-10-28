@@ -1,0 +1,47 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+{{- with .Values.metrics.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "spark-connect.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" $ | nindent 4 }}
+    {{- with .labels }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  namespaceSelector:
+    matchNames: [{{ $.Release.Namespace }}]
+  selector:
+    matchLabels:
+      {{- include "spark-connect.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: driver
+  endpoints:
+    - port: ui
+      path: {{ $.Values.metrics.path }}
+      interval: {{ .interval }}
+      {{- with .relabelings }}
+      relabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.metrics.prometheusRule.enabled }}
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+---
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "spark-connect.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  groups:
+    {{- toYaml .Values.metrics.prometheusRule.groups | nindent 4 }}
+{{- end }}

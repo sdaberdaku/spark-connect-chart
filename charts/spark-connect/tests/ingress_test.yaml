@@ -49,8 +49,13 @@ tests:
       - equal: {path: "spec.rules[0].http.paths[0].backend.service", value: {name: RELEASE-NAME-spark-connect, port: {name: ui}}}
   - it: points the history server ingress at the history server service
     set:
+      historyServer: {enabled: true, logDirectory: "file:/e"}
       ingress:
         historyServer: {enabled: true, hosts: [{host: h.example.com, paths: [{path: /}]}]}
     asserts:
       - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-history-server}
       - equal: {path: "spec.rules[0].http.paths[0].backend.service", value: {name: RELEASE-NAME-spark-connect-history-server, port: {name: http}}}
+  - it: fails when exposing a disabled history server
+    set: {ingress: {historyServer: {enabled: true}}}
+    asserts:
+      - failedTemplate: {errorMessage: historyServer.enabled must be true to expose the history server}

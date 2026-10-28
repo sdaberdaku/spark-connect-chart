@@ -2,6 +2,9 @@
 {{- range $key, $suffix := dict "connect" "connect" "ui" "ui" "historyServer" "history-server" }}
 {{- $v := index $root.Values.ingress $key }}
 {{- if $v.enabled }}
+{{- if and (eq $key "historyServer") (not $root.Values.historyServer.enabled) }}
+{{- fail "historyServer.enabled must be true to expose the history server" }}
+{{- end }}
 {{- $service := ternary (include "spark-connect.nameWith" (list $root "history-server")) (include "spark-connect.fullname" $root) (eq $key "historyServer") }}
 {{- $port := ternary "http" $key (eq $key "historyServer") }}
 ---

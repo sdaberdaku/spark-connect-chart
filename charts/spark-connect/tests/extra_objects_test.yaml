@@ -1,0 +1,28 @@
+suite: extra objects
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
+templates:
+  - templates/extra-objects.yaml
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: templates a map and a string
+    set:
+      extraObjects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: '{{ include "spark-connect.fullname" . }}-x'
+        - |
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: {{ .Release.Name }}-y
+    asserts:
+      - hasDocuments: {count: 2}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-x}
+        documentIndex: 0
+      - equal: {path: metadata.name, value: RELEASE-NAME-y}
+        documentIndex: 1

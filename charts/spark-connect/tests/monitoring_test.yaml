@@ -1,0 +1,46 @@
+suite: monitoring
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
+templates:
+  - templates/monitoring.yaml
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: needs metrics.enabled for the service monitor
+    set: {metrics: {serviceMonitor: {enabled: true}}}
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders the service monitor
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          labels: {release: prom}
+          interval: 15s
+          relabelings: [{action: replace, targetLabel: x, replacement: y}]
+    asserts:
+      - hasDocuments: {count: 1}
+      - isKind: {of: ServiceMonitor}
+      - equal: {path: metadata.labels.release, value: prom}
+      - equal: {path: 'spec.endpoints[0].port', value: ui}
+      - equal: {path: 'spec.endpoints[0].path', value: /metrics/prometheus}
+      - equal: {path: 'spec.endpoints[0].interval', value: 15s}
+      - equal: {path: 'spec.endpoints[0].relabelings', value: [{action: replace, targetLabel: x, replacement: y}]}
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/component"]', value: driver}
+      - equal: {path: 'spec.selector.matchLabels["app.kubernetes.io/instance"]', value: RELEASE-NAME}
+      - equal: {path: spec.namespaceSelector.matchNames, value: [NAMESPACE]}
+  - it: renders the prometheus rule
+    set:
+      metrics:
+        prometheusRule:
+          enabled: true
+          groups:
+            - name: g
+              rules: [{alert: A, expr: "up == 0"}]
+    asserts:
+      - hasDocuments: {count: 1}
+      - isKind: {of: PrometheusRule}
+      - equal: {path: spec.groups, value: [{name: g, rules: [{alert: A, expr: "up == 0"}]}]}

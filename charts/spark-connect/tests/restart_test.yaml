@@ -1,0 +1,56 @@
+suite: restart
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
+templates:
+  - templates/restart.yaml
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders the cronjob
+    set: {restart: {enabled: true}}
+    documentSelector: {path: kind, value: CronJob}
+    asserts:
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-restart}
+      - equal: {path: spec.schedule, value: "0 5 * * 6"}
+      - notExists: {path: spec.timeZone}
+      - equal: {path: spec.concurrencyPolicy, value: Forbid}
+      - equal: {path: spec.jobTemplate.spec.template.spec.restartPolicy, value: Never}
+      - equal: {path: spec.jobTemplate.spec.template.spec.automountServiceAccountToken, value: true}
+      - equal: {path: spec.jobTemplate.spec.template.spec.serviceAccountName, value: RELEASE-NAME-spark-connect-restart}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].image', value: "registry.k8s.io/kubectl:v1.37.2"}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].args', value: [rollout, restart, deployment/RELEASE-NAME-spark-connect-driver]}
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true}
+      - equal: {path: spec.jobTemplate.spec.template.spec.securityContext.runAsUser, value: 185}
+      - contains: {path: 'spec.jobTemplate.spec.template.spec.containers[0].env', content: {name: HOME, value: /tmp}}
+      - contains: {path: spec.jobTemplate.spec.template.spec.volumes, content: {name: tmp, emptyDir: {}}}
+  - it: sets the time zone
+    set: {restart: {enabled: true, timeZone: Europe/Rome, schedule: "1 2 * * *"}}
+    documentSelector: {path: kind, value: CronJob}
+    asserts:
+      - equal: {path: spec.timeZone, value: Europe/Rome}
+      - equal: {path: spec.schedule, value: "1 2 * * *"}
+  - it: limits the role to the driver deployment
+    set: {restart: {enabled: true}}
+    documentSelector: {path: kind, value: Role}
+    asserts:
+      - equal:
+          path: rules
+          value:
+            - apiGroups: [apps]
+              resources: [deployments]
+              resourceNames: [RELEASE-NAME-spark-connect-driver]
+              verbs: [get, patch]
+  - it: binds the role
+    set: {restart: {enabled: true}}
+    documentSelector: {path: kind, value: RoleBinding}
+    asserts:
+      - equal: {path: roleRef.name, value: RELEASE-NAME-spark-connect-restart}
+      - equal: {path: 'subjects[0]', value: {kind: ServiceAccount, name: RELEASE-NAME-spark-connect-restart, namespace: NAMESPACE}}
+  - it: renders the service account
+    set: {restart: {enabled: true}}
+    documentSelector: {path: kind, value: ServiceAccount}
+    asserts:
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-restart}
+      - equal: {path: automountServiceAccountToken, value: true}

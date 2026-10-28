@@ -1,0 +1,94 @@
+{{- if .Values.restart.enabled }}
+{{- $name := include "spark-connect.nameWith" (list . "restart") }}
+{{- $driver := include "spark-connect.nameWith" (list . "driver") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: restart
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: restart
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [{{ $driver }}]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: restart
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spark-connect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: restart
+spec:
+  schedule: {{ .Values.restart.schedule | quote }}
+  {{- with .Values.restart.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "spark-connect.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: restart
+            {{- with .Values.commonPodLabels }}{{ toYaml . | nindent 12 }}{{ end }}
+          {{- with .Values.commonPodAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ $name }}
+          automountServiceAccountToken: true
+          securityContext:
+            {{- include "spark-connect.podSecurityContext" . | nindent 12 }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: kubectl
+              image: {{ .Values.restart.image.repository }}:{{ .Values.restart.image.tag }}
+              imagePullPolicy: {{ .Values.restart.image.pullPolicy }}
+              securityContext:
+                {{- include "spark-connect.containerSecurityContext" . | nindent 16 }}
+              args: [rollout, restart, deployment/{{ $driver }}]
+              env:
+                - {name: HOME, value: /tmp}
+              volumeMounts:
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - {name: tmp, emptyDir: {}}
+{{- end }}

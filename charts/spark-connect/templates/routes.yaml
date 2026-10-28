@@ -2,6 +2,9 @@
 {{- range $key, $suffix := dict "connect" "connect" "ui" "ui" "historyServer" "history-server" }}
 {{- $v := index $root.Values.gateway $key }}
 {{- if $v.enabled }}
+{{- if and (eq $key "historyServer") (not $root.Values.historyServer.enabled) }}
+{{- fail "historyServer.enabled must be true to expose the history server" }}
+{{- end }}
 {{- if not $v.parentRefs }}
 {{- fail (printf "gateway.%s.parentRefs is required" $key) }}
 {{- end }}

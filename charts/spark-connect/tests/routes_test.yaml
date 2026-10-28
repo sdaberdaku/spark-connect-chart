@@ -47,6 +47,7 @@ tests:
               backendRefs: [{name: RELEASE-NAME-spark-connect, port: 4040}]
   - it: renders an HTTPRoute for the history server
     set:
+      historyServer: {enabled: true, logDirectory: "file:/e"}
       gateway:
         historyServer:
           enabled: true
@@ -74,3 +75,8 @@ tests:
     template: templates/routes.yaml
     asserts:
       - failedTemplate: {errorMessage: gateway.connect.parentRefs is required}
+  - it: fails when exposing a disabled history server
+    set: {gateway: {historyServer: {enabled: true, parentRefs: [{name: gw}]}}}
+    template: templates/routes.yaml
+    asserts:
+      - failedTemplate: {errorMessage: historyServer.enabled must be true to expose the history server}
