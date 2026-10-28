@@ -45,12 +45,14 @@ jobs:
             exit 0
           fi
           [ "$REF_NAME" = main ] || { echo "::error::release runs from main only"; exit 1; }
-          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
-            echo "Tag v$version exists: nothing to release."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          fi
+          # ls-remote --exit-code returns 2 when the ref is missing; any other non-zero code is an error, never "publish".
+          rc=0
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null || rc=$?
+          case $rc in
+            0) echo "Tag v$version exists: nothing to release."; echo "publish=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::git ls-remote failed with exit code $rc"; exit 1 ;;
+          esac
       - name: Package the chart
         if: steps.version.outputs.publish == 'true'
         run: make tools schema docs package
