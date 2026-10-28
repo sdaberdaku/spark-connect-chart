@@ -72,6 +72,6 @@ historyServer:
 
 The pods run as UID and GID 185 with `fsGroup: 185`, so a volume that honours `fsGroup` is writable by the driver. The history server only reads.
 
-Object stores (S3, GCS, Azure) as the log directory need the connector jars on the history server's classpath. `packages` only reaches `spark-submit`, not the history server daemon, so build an image that contains the connector jars and set `image.repository` and `image.tag`. The same applies to the driver and executors when they read from an object store: use `packages` for the connector, or bake the jars into the image.
+Object stores (S3, GCS, Azure) as the log directory need the connector jars on the history server's classpath. `packages` is read by `spark-submit` and the history server daemon does not use it, so build an image that contains the connector jars and set `image.repository` and `image.tag`. The driver and executors can take a connector from `packages` or from the same image.
 
 To open the history server, port-forward its Service (`svc/<fullname>-history-server`, where `<fullname>` is the driver Service name, port 18080) or expose it through `ingress.historyServer` or `gateway.historyServer`.

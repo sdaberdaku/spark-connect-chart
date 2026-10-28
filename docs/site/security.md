@@ -13,7 +13,7 @@ auth:
 
 This sets `spark.connect.authenticate.token`. The token comes from a Secret:
 
-- With `auth.existingSecret` empty, the chart generates a Secret named `<release>-spark-connect-auth` (the name is shortened to stay within 63 characters; for a release called `spark-connect` it is `spark-connect-auth`). The chart reuses the existing value on upgrade through `lookup`.
+- With `auth.existingSecret` empty, the chart generates a Secret named `<fullname>-auth`, where `<fullname>` is the name of the driver Service (release `foo` gives `foo-spark-connect-auth`, release `my-spark-connect` gives `my-spark-connect-auth`). The chart reuses the existing value on upgrade through `lookup`.
 - With `auth.existingSecret` set, the chart reads the token from that Secret, from the key `auth.secretKey` (default `token`).
 
 The driver receives the token through an environment variable, never through the rendered properties file.
@@ -21,7 +21,7 @@ The driver receives the token through an environment variable, never through the
 Read a generated token:
 
 ```console
-kubectl -n spark get secret spark-connect-auth -o jsonpath='{.data.token}' | base64 -d
+kubectl -n spark get secret <fullname>-auth -o jsonpath='{.data.token}' | base64 -d
 ```
 
 Tools that render the chart with `helm template` and apply the result (Argo CD, for example) cannot use `lookup`, so they would get a new random token on every render. With such tools create the Secret yourself and set `auth.existingSecret`.

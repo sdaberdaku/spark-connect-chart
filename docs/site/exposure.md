@@ -1,8 +1,8 @@
 # Exposure
 
-The chart creates one Service for the driver with the Connect port (15002, `appProtocol: kubernetes.io/h2c`) and the UI port (4040), and a second Service for the history server (18080). Each of the three endpoints (`connect`, `ui`, `historyServer`) can be exposed through an Ingress, through the Gateway API, or both. The chart does not create a Gateway or a GatewayClass and installs no controller.
+The chart creates one Service for the driver with the Connect port (15002, `appProtocol: kubernetes.io/h2c`) and the UI port (4040), and, when `historyServer.enabled` is true, a second Service for the history server (18080). Each of the three endpoints (`connect`, `ui`, `historyServer`) can be exposed through an Ingress, through the Gateway API, or both. The chart does not create a Gateway or a GatewayClass and installs no controller.
 
-The Connect endpoint speaks gRPC over HTTP/2 without TLS, so the controller must forward HTTP/2 (h2c) to the backend. The examples below are examples: the chart itself is controller agnostic, and each controller's own documentation is the reference. The links were checked on 2026-10-28.
+The Connect endpoint speaks gRPC over HTTP/2 without TLS, so the controller must forward HTTP/2 (h2c) to the backend. The chart is controller agnostic. The examples below show common setups, and each controller's own documentation is the reference. The links were checked on 2026-10-28.
 
 Without a token, an exposed Connect endpoint lets anyone who reaches it run code. Read [Security](security.md) first.
 
@@ -95,7 +95,7 @@ gateway:
         sectionName: https
 ```
 
-The chart renders a `GRPCRoute` named `<release>-connect` (shortened when needed) with the driver Service as backend. `gateway.ui` and `gateway.historyServer` render `HTTPRoute` objects and take `matches` as well. `parentRefs` is required whenever a route is enabled.
+The chart renders a `GRPCRoute` named `<fullname>-connect`, where `<fullname>` is the name of the driver Service, with the driver Service as backend. `gateway.ui` and `gateway.historyServer` render `HTTPRoute` objects and take `matches` as well. `parentRefs` is required whenever a route is enabled.
 
 ## AWS Load Balancer Controller
 
@@ -121,15 +121,21 @@ extraObjects:
         name: "{{ include \"spark-connect.fullname\" . }}"
       defaultConfiguration:
         targetType: ip
-        protocolVersion: GRPC
-        healthCheckConfig:
-          healthCheckProtocol: HTTP
-          healthCheckPath: /
-          matcher:
-            grpcCode: "12"
+      routeConfigurations:
+        - routeIdentifier:
+            kind: GRPCRoute
+            namespace: "{{ .Release.Namespace }}"
+            name: "{{ include \"spark-connect.fullname\" . }}-connect"
+          targetGroupProps:
+            protocolVersion: GRPC
+            healthCheckConfig:
+              healthCheckProtocol: HTTP
+              healthCheckPath: /
+              matcher:
+                grpcCode: "12"
 ```
 
-The server has no health service, so a gRPC call to path `/` returns status 12 (UNIMPLEMENTED). That answer shows the server is up, so the health check accepts code 12 as healthy. This example was checked against the controller documentation and rendered with Helm, but not run on AWS. `targetType: ip` registers the pod IPs directly, which a ClusterIP Service needs. The Gateway and its load balancer configuration, the certificate and the DNS record are yours to create as described in the controller documentation.
+The server has no health service, so a gRPC call to path `/` returns status 12 (UNIMPLEMENTED). That answer shows the server is up, so the health check accepts code 12 as healthy. This example was checked against the controller documentation and rendered with Helm, but not run on AWS. `targetType: ip` registers the pod IPs directly, which a ClusterIP Service needs. The gRPC settings sit under `routeConfigurations` for the Connect GRPCRoute, so a UI or history server route on the same load balancer keeps HTTP target groups. The Gateway and its load balancer configuration, the certificate and the DNS record are yours to create as described in the controller documentation.
 
 ## Combining Ingress and Gateway API
 

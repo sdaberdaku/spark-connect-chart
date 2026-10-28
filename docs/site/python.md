@@ -18,7 +18,7 @@ You can check any image yourself:
 docker run --rm --entrypoint python3 apache/spark:4.2.0 --version
 ```
 
-Run the client on that minor version, for example with `uv run --python 3.10 --with "pyspark-client==4.2.0" ...`. The client package version should equal the server's Spark version.
+Run the client on that minor version, for example with `uv run --python "$PY" --with "pyspark-client==$SPARK_VERSION" ...`. The client package version should equal the server's Spark version.
 
 ## Arrow and pandas
 
@@ -29,7 +29,7 @@ sparkConf:
   spark.sql.execution.pythonUDF.arrow.enabled: "false"
 ```
 
-Pandas UDFs, Arrow UDFs and `toPandas()` need pandas and pyarrow on the executors. Use an image that has them, for example `ghcr.io/sdaberdaku/spark:<spark>-python<minor>`, and set Arrow back to `"true"`:
+The flag only affects plain `@udf` functions. Pandas UDFs and Arrow UDFs need pandas and pyarrow in the executor image whatever the flag says (`toPandas()` does not: the client converts the Arrow data, and `pyspark-client` depends on pandas and pyarrow). Use an image that has them, for example `ghcr.io/sdaberdaku/spark:<spark>-python<minor>`, and set Arrow back to `"true"`:
 
 ```yaml
 image:

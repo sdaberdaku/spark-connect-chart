@@ -14,16 +14,20 @@ The release is named `spark-connect`, so the Service is also named `spark-connec
 
 ## Reach the server
 
+In a second terminal:
+
 ```console
 kubectl -n spark port-forward svc/spark-connect 15002:15002
 ```
 
 ## Run a query
 
-The PySpark client version has to match the Spark version of the server (the chart `appVersion`, shown by `helm show chart`). The Python minor version has to match the image's Python for Python UDFs: the stock images ship Python 3.10 (see [Python](python.md)).
+The PySpark client version has to match the Spark version of the server, which is the chart `appVersion`. The Python minor version has to match the image's Python for Python UDFs (see [Python](python.md)). Read both from the chart and the image:
 
 ```console
-uv run --python 3.10 --with "pyspark-client==4.2.0" python - <<'PY'
+SPARK_VERSION=$(helm show chart oci://ghcr.io/sdaberdaku/charts/spark-connect | sed -n 's/^appVersion: "\{0,1\}\([0-9.]*\).*/\1/p')
+PY=$(docker run --rm --entrypoint python3 apache/spark:$SPARK_VERSION -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
+uv run --python "$PY" --with "pyspark-client==$SPARK_VERSION" python - <<'PY'
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import udf
 
