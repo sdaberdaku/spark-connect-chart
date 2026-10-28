@@ -19,6 +19,8 @@ KIND_VERSION ?= v0.33.0
 KUBECTL_VERSION ?= v1.37.2
 # renovate: datasource=github-releases depName=norwoodj/helm-docs
 HELM_DOCS_VERSION ?= v1.14.2
+# renovate: datasource=github-releases depName=mikefarah/yq
+YQ_VERSION ?= v4.54.1
 # renovate: datasource=github-releases depName=yannh/kubeconform
 KUBECONFORM_VERSION ?= v0.8.0
 # renovate: datasource=github-releases depName=losisin/helm-values-schema-json
@@ -33,11 +35,11 @@ HELM := $(BIN)/helm
 K8S_VERSIONS := 1.35.0 1.36.0 1.37.0
 CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
 # renovate: datasource=docker depName=quay.io/helmpack/chart-testing
-CT_IMAGE ?= quay.io/helmpack/chart-testing:latest
+CT_IMAGE ?= quay.io/helmpack/chart-testing:v3.15.0
 CT_ARGS ?=
 
 .PHONY: tools schema docs lint unittest kubeconform ct-lint package versions-check check
-tools: $(BIN)/.tools-$(HELM_VERSION)-$(HELM_UNITTEST_VERSION)-$(KIND_VERSION)-$(KUBECTL_VERSION)-$(HELM_DOCS_VERSION)-$(KUBECONFORM_VERSION)-$(HELM_SCHEMA_VERSION)
+tools: $(BIN)/.tools-$(HELM_VERSION)-$(HELM_UNITTEST_VERSION)-$(KIND_VERSION)-$(KUBECTL_VERSION)-$(HELM_DOCS_VERSION)-$(KUBECONFORM_VERSION)-$(HELM_SCHEMA_VERSION)-$(YQ_VERSION)
 
 $(BIN)/.tools-%:
 	rm -rf $(BIN)
@@ -49,7 +51,8 @@ $(BIN)/.tools-%:
 	curl -fsSL -o $(BIN)/kubectl https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(OS)/$(ARCH)/kubectl
 	curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/$(HELM_DOCS_VERSION)/helm-docs_$(HELM_DOCS_VERSION:v%=%)_$(DOCS_OS)_$(DOCS_ARCH).tar.gz | tar xz -C $(BIN) helm-docs
 	curl -fsSL https://github.com/yannh/kubeconform/releases/download/$(KUBECONFORM_VERSION)/kubeconform-$(OS)-$(ARCH).tar.gz | tar xz -C $(BIN) kubeconform
-	chmod +x $(BIN)/kind $(BIN)/kubectl
+	curl -fsSL -o $(BIN)/yq https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(OS)_$(ARCH)
+	chmod +x $(BIN)/yq $(BIN)/kind $(BIN)/kubectl
 	touch $@
 
 schema: tools
@@ -70,7 +73,8 @@ unittest: tools schema docs
 kubeconform: tools schema docs
 	@set -e; for v in $(CHART)/ci/default-values.yaml $(CHART)/ci/all-on-values.yaml; do \
 	  $(HELM) template x $(CHART) -f $$v > $(BIN)/rendered.yaml; \
-	  uv run --quiet --with pyyaml python3 -I hack/executor-template.py < $(BIN)/rendered.yaml > $(BIN)/executor.yaml; \
+	  yq 'select(.kind == "ConfigMap" and .data["executor-pod-template.yaml"]) | .data["executor-pod-template.yaml"]' $(BIN)/rendered.yaml > $(BIN)/executor.yaml; \
+	  test -s $(BIN)/executor.yaml || { echo "executor pod template not found in rendered output"; exit 1; }; \
 	  for k in $(K8S_VERSIONS); do \
 	    echo "== $$v on Kubernetes $$k"; \
 	    kubeconform -strict -summary -kubernetes-version $$k -schema-location default -schema-location '$(CRD_SCHEMAS)' $(BIN)/rendered.yaml $(BIN)/executor.yaml; \

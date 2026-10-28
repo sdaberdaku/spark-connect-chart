@@ -65,8 +65,8 @@ auth:
 driver:
   # -- Driver cores (spark.driver.cores)
   cores: 1
-  # -- Driver pod CPU request
   # @schema type: [string, number]
+  # -- Driver pod CPU request
   cpuRequest: 1000m
   # -- Driver heap in MiB (spark.driver.memory)
   memoryMiB: 1024
@@ -106,8 +106,8 @@ executor:
   instances: 1
   # -- Executor cores (spark.executor.cores)
   cores: 1
-  # -- Executor pod CPU request (spark.kubernetes.executor.request.cores)
   # @schema type: [string, number]
+  # -- Executor pod CPU request (spark.kubernetes.executor.request.cores)
   cpuRequest: 500m
   # -- Executor heap in MiB (spark.executor.memory)
   memoryMiB: 1024
