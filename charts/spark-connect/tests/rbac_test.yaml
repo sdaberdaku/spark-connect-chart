@@ -1,4 +1,7 @@
 suite: serviceaccounts and rbac
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
 templates:
   - templates/serviceaccounts.yaml
   - templates/rbac.yaml
@@ -87,3 +90,18 @@ tests:
         documentIndex: 1
       - equal: {path: 'subjects[0].name', value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
         documentIndex: 1
+      - equal: {path: metadata.name, value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
+        template: templates/serviceaccounts.yaml
+        documentIndex: 0
+      - equal: {path: spec.template.spec.serviceAccountName, value: abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij-spark-driver}
+        template: templates/driver.yaml
+  - it: uses default for the executor service account when not created
+    template: templates/configmap.yaml
+    set: {serviceAccount: {executor: {create: false}}}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.authenticate.executor.serviceAccountName default$'}
+  - it: uses the given executor service account name when not created
+    template: templates/configmap.yaml
+    set: {serviceAccount: {executor: {create: false, name: ex}}}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.authenticate.executor.serviceAccountName ex$'}

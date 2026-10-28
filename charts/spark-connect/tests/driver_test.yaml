@@ -1,4 +1,7 @@
 suite: driver
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
 templates:
   - templates/driver.yaml
   - templates/configmap.yaml
