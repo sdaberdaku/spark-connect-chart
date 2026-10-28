@@ -1,4 +1,7 @@
 suite: configmap
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
 templates:
   - templates/configmap.yaml
 tests:
