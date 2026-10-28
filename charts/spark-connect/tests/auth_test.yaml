@@ -26,6 +26,32 @@ tests:
       - isKind: {of: Secret}
       - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-auth}
       - matchRegex: {path: stringData.token, pattern: '^[A-Za-z0-9]{32}$'}
+  - it: gives a live Secret without data a fresh 32 character token
+    set: {auth: {enabled: true}}
+    template: templates/auth-secret.yaml
+    release: {name: sc, namespace: ns}
+    kubernetesProvider:
+      scheme:
+        "v1/Secret": {gvr: {version: v1, resource: secrets}, namespaced: true}
+      objects:
+        - {apiVersion: v1, kind: Secret, metadata: {name: sc-spark-connect-auth, namespace: ns}}
+    asserts:
+      - isKind: {of: Secret}
+      - matchRegex: {path: stringData.token, pattern: '^[A-Za-z0-9]{32}$'}
+  - it: keeps the token of a live Secret
+    set: {auth: {enabled: true}}
+    template: templates/auth-secret.yaml
+    release: {name: sc, namespace: ns}
+    kubernetesProvider:
+      scheme:
+        "v1/Secret": {gvr: {version: v1, resource: secrets}, namespaced: true}
+      objects:
+        - apiVersion: v1
+          kind: Secret
+          metadata: {name: sc-spark-connect-auth, namespace: ns}
+          data: {token: a25vd24tdG9rZW4=}
+    asserts:
+      - equal: {path: stringData.token, value: known-token}
   - it: passes the token to the driver from the Secret
     set: {auth: {enabled: true}}
     template: templates/driver.yaml
