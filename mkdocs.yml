@@ -1,0 +1,27 @@
+site_name: spark-connect
+site_description: A Helm chart that runs an Apache Spark Connect server on Kubernetes
+site_url: https://sdaberdaku.github.io/spark-connect-chart/
+repo_url: https://github.com/sdaberdaku/spark-connect-chart
+repo_name: sdaberdaku/spark-connect-chart
+docs_dir: docs/site
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Configuration: configuration.md
+  - Exposure: exposure.md
+  - Python: python.md
+  - Security: security.md
+  - Operations: operations.md
+  - Development: development.md
+  - Values reference: values.md

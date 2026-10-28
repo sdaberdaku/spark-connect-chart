@@ -1,5 +1,5 @@
 .bin/
-site/
+/site/
 e2e/out/
 __pycache__/
 charts/spark-connect/README.md
