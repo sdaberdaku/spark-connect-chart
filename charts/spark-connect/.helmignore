@@ -6,3 +6,4 @@ ci/
 *.swp
 *.bak
 *.tmp
+README.md.gotmpl

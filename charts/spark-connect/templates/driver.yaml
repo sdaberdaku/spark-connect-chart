@@ -28,6 +28,7 @@ spec:
         {{- with .Values.driver.podAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
     spec:
       serviceAccountName: {{ include "spark-connect.driverServiceAccountName" . }}
+      automountServiceAccountToken: true
       securityContext:
         {{- include "spark-connect.podSecurityContext" . | nindent 8 }}
       {{- with .Values.imagePullSecrets }}

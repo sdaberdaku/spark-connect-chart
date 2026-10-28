@@ -1,4 +1,3 @@
-{{- if .Values.serviceAccount.driver.create }}
 {{- $name := include "spark-connect.nameWith" (list . "driver") }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -38,4 +37,3 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "spark-connect.driverServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- end }}

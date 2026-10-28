@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "enabledManagers": ["github-actions", "pip_requirements", "custom.regex"],
   "customManagers": [
     {
@@ -35,7 +35,14 @@
     {
       "matchDepNames": ["apache/spark"],
       "groupName": "spark",
-      "schedule": ["at any time"]
+      "schedule": ["at any time"],
+      "separateMinorPatch": true,
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["!actions/**"],
+      "minimumReleaseAge": "7 days"
     },
     {
       "matchFileNames": ["charts/spark-connect/**"],

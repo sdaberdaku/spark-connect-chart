@@ -59,3 +59,19 @@ tests:
     set: {ingress: {historyServer: {enabled: true}}}
     asserts:
       - failedTemplate: {errorMessage: historyServer.enabled must be true to expose the history server}
+  - it: sets the release namespace
+    set:
+      ingress:
+        connect: {enabled: true, hosts: [{host: a.example.com, paths: [{path: /}]}]}
+    asserts:
+      - equal: {path: metadata.namespace, value: NAMESPACE}
+  - it: fails on an enabled ingress without hosts
+    set: {ingress: {ui: {enabled: true}}}
+    asserts:
+      - failedTemplate: {errorMessage: ingress.ui.hosts is required}
+  - it: fails on a host without paths
+    set:
+      ingress:
+        connect: {enabled: true, hosts: [{host: a.example.com, paths: [{path: /}]}, {host: b.example.com}]}
+    asserts:
+      - failedTemplate: {errorMessage: "ingress.connect.hosts[1].paths is required"}

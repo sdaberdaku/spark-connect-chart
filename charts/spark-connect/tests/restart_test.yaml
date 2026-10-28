@@ -54,3 +54,22 @@ tests:
     asserts:
       - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-restart}
       - equal: {path: automountServiceAccountToken, value: true}
+  - it: sets resources, node selector and tolerations on the cronjob
+    set:
+      restart:
+        enabled: true
+        resources: {limits: {memory: 64Mi}}
+        nodeSelector: {pool: system}
+        tolerations: [{key: system, operator: Exists}]
+    documentSelector: {path: kind, value: CronJob}
+    asserts:
+      - equal: {path: 'spec.jobTemplate.spec.template.spec.containers[0].resources', value: {limits: {memory: 64Mi}}}
+      - equal: {path: spec.jobTemplate.spec.template.spec.nodeSelector, value: {pool: system}}
+      - equal: {path: spec.jobTemplate.spec.template.spec.tolerations, value: [{key: system, operator: Exists}]}
+  - it: sets none of them by default
+    set: {restart: {enabled: true}}
+    documentSelector: {path: kind, value: CronJob}
+    asserts:
+      - notExists: {path: 'spec.jobTemplate.spec.template.spec.containers[0].resources'}
+      - notExists: {path: spec.jobTemplate.spec.template.spec.nodeSelector}
+      - notExists: {path: spec.jobTemplate.spec.template.spec.tolerations}

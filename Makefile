@@ -8,6 +8,8 @@ UNAME_M := $(shell uname -m)
 ARCH := $(if $(filter aarch64 arm64,$(UNAME_M)),arm64,amd64)
 DOCS_ARCH := $(if $(filter arm64,$(ARCH)),arm64,x86_64)
 DOCS_OS := $(shell uname -s)
+# helm-unittest names its macOS assets "macos".
+UNITTEST_OS := $(if $(filter darwin,$(OS)),macos,$(OS))
 
 # renovate: datasource=github-releases depName=helm/helm
 HELM_VERSION ?= v4.3.1
@@ -30,9 +32,9 @@ export HELM_PLUGINS := $(BIN)/plugins
 export PATH := $(BIN):$(PATH)
 HELM := $(BIN)/helm
 
-# Kubernetes minors validated by kubeconform: the last three in its default schema repo
-# (yannh/kubernetes-json-schema; check it has the new minor before bumping).
-K8S_VERSIONS := 1.35.0 1.36.0 1.37.0
+# Kubernetes versions validated by kubeconform: the kubeVersion floor of the chart plus the last three minors
+# in its default schema repo (yannh/kubernetes-json-schema; check it has the new minor before bumping).
+K8S_VERSIONS := 1.29.0 1.35.0 1.36.0 1.37.0
 CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
 # renovate: datasource=docker depName=quay.io/helmpack/chart-testing
 CT_IMAGE ?= quay.io/helmpack/chart-testing:v3.15.0
@@ -45,7 +47,7 @@ $(BIN)/.tools-%:
 	rm -rf $(BIN)
 	mkdir -p $(BIN)/plugins/unittest $(BIN)/plugins/schema
 	curl -fsSL https://get.helm.sh/helm-$(HELM_VERSION)-$(OS)-$(ARCH).tar.gz | tar xz -C $(BIN) --strip-components=1 $(OS)-$(ARCH)/helm
-	curl -fsSL https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/helm-unittest-$(OS)-$(ARCH)-$(HELM_UNITTEST_VERSION:v%=%).tgz | tar xz -C $(BIN)/plugins/unittest
+	curl -fsSL https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/helm-unittest-$(UNITTEST_OS)-$(ARCH)-$(HELM_UNITTEST_VERSION:v%=%).tgz | tar xz -C $(BIN)/plugins/unittest
 	curl -fsSL https://github.com/losisin/helm-values-schema-json/releases/download/$(HELM_SCHEMA_VERSION)/helm-values-schema-json_$(HELM_SCHEMA_VERSION:v%=%)_$(OS)_$(ARCH).tgz | tar xz -C $(BIN)/plugins/schema
 	curl -fsSL -o $(BIN)/kind https://github.com/kubernetes-sigs/kind/releases/download/$(KIND_VERSION)/kind-$(OS)-$(ARCH)
 	curl -fsSL -o $(BIN)/kubectl https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(OS)/$(ARCH)/kubectl

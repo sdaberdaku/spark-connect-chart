@@ -36,7 +36,16 @@ sparkConf:
   spark.sql.catalog.lake: org.apache.iceberg.spark.SparkCatalog
 ```
 
-The chart owns some properties itself (master URL, namespace, ports, driver host, image, service accounts, pod template, the sizes above, `spark.jars.packages`, the scheduler allocation file and the token). If `sparkConf` sets one of them, the render fails with a message that names the value to use instead.
+The chart owns some properties itself (master URL, namespace, ports, driver host, image, service accounts, pod template, the sizes above, `spark.jars.packages`, the scheduler allocation file and the token). If `sparkConf` sets one of them, the render fails with a message that names the value to use instead, or says that the property cannot be overridden.
+
+Property names contain dots, and Helm reads a dot in `--set` as a level of nesting. Escape the dots of the key on the command line:
+
+```console
+helm upgrade spark-connect oci://ghcr.io/sdaberdaku/charts/spark-connect --reuse-values \
+  --set 'sparkConf.spark\.sql\.shuffle\.partitions=64'
+```
+
+Without the escapes the chart's schema refuses the value, because it would be a map. Values must be strings, numbers or booleans. Backslashes in a value are escaped for you, and a value with a newline fails the render. `historyServer.conf` follows the same rules.
 
 The default `sparkConf` contains one entry, `spark.sql.execution.pythonUDF.arrow.enabled: "false"`. See [Python](python.md) for why. If you set `sparkConf` in your own values, Helm merges maps, so the default stays unless you override it.
 
@@ -45,11 +54,28 @@ The default `sparkConf` contains one entry, `spark.sql.execution.pythonUDF.arrow
 `packages` is a list of Maven coordinates, rendered as `spark.jars.packages`. The driver resolves them at start and ships them to executors.
 
 ```yaml
+image:
+  tag: 4.1.3
 packages:
-  - org.apache.iceberg:iceberg-spark-runtime-4.0_2.13:1.10.0
+  - org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.12.0
 ```
 
-The Ivy cache is on an emptyDir under `/tmp`, so resolution happens again on every driver start and needs network access to Maven Central or your mirror. For jars you do not want to download at start, build an image or mount them with `driver.volumes` and `driver.volumeMounts`.
+The Spark minor in the Iceberg artifact name has to be the Spark minor of the server. Iceberg publishes runtimes for Spark 4.0 and 4.1 and none for 4.2 yet (checked on 2026-10-28), so the example runs Spark 4.1.3. See [Running Spark 4.0 or 4.1](#running-spark-40-or-41).
+
+The Ivy cache is on an emptyDir under `/tmp`, so resolution happens again on every driver start and needs network access to Maven Central or your mirror.
+
+For jars you do not want to download at start, build an image, or mount them. Mounting a jar into the driver is not enough: Spark only loads jars that are on the class path, so also list it in `spark.jars` (or add it to `spark.driver.extraClassPath`), and make the jar available to the executors as well. Either mount the same volume with `executor.volumes` and `executor.volumeMounts` and list the path in `spark.executor.extraClassPath`, or give `spark.jars` a URL that every pod can read, which makes Spark distribute the jar to the executors.
+
+## Running Spark 4.0 or 4.1
+
+The chart version follows the newest Spark line, so `appVersion` is the Spark 4.2 release. To run an older line set the image tag, and use a PySpark client of the same version:
+
+```yaml
+image:
+  tag: 4.1.3
+```
+
+The chart is tested against the newest patch of every supported line, which are the rows of `spark-versions.json` in the repository. Install the client with `pyspark-client==4.1.3` to match.
 
 ## FAIR scheduler pools
 
@@ -81,7 +107,7 @@ Pools only take effect when `spark.scheduler.mode` is `FAIR`, which the chart do
 
 ## Placement and extras
 
-The driver, executors and history server each take `nodeSelector`, `affinity`, `tolerations`, `topologySpreadConstraints` (driver and executor), `priorityClassName` (driver and executor), `podAnnotations`, `podLabels`, `env`, `volumes` and `volumeMounts`. `commonPodAnnotations` and `commonPodLabels` apply to every pod. There is no default affinity.
+The driver, executors and history server each take `nodeSelector`, `affinity`, `tolerations`, `topologySpreadConstraints`, `priorityClassName`, `podAnnotations`, `podLabels`, `env`, `volumes` and `volumeMounts`. The scheduled restart takes `resources`, `nodeSelector` and `tolerations`. Executors use the driver image unless `executor.image.repository` or `executor.image.tag` is set. `commonPodAnnotations` and `commonPodLabels` apply to every pod. There is no default affinity.
 
 `extraObjects` is a list of extra manifests, each a map or a string, rendered with `tpl`:
 

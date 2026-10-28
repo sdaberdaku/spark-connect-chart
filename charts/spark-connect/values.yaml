@@ -16,8 +16,10 @@ commonPodAnnotations: {}
 # -- Labels added to every pod the chart or the driver creates
 commonPodLabels: {}
 
+# @schema additionalProperties: {type: [string, number, boolean]}
 # -- Spark properties (spark-defaults.conf), as a map. Values are templated with tpl and keys are sorted.
 # Keys the chart sets itself fail the render and name the value to use instead.
+# With --set, escape the dots of a key: `--set 'sparkConf.spark\.sql\.shuffle\.partitions=64'`.
 sparkConf:
   # Spark 4.2 enables Arrow for Python UDFs and the stock images have no pyarrow.
   # Set to "true" if your image has pyarrow.
@@ -102,6 +104,11 @@ driver:
   readinessProbe: {initialDelaySeconds: 30, periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 6}
 
 executor:
+  image:
+    # -- Executor image repository. Empty uses image.repository.
+    repository: ""
+    # -- Executor image tag. Empty uses image.tag, or the chart appVersion.
+    tag: ""
   # -- Number of executors (spark.executor.instances)
   instances: 1
   # -- Executor cores (spark.executor.cores)
@@ -140,9 +147,10 @@ executor:
 
 serviceAccount:
   driver:
-    # -- Create the driver ServiceAccount
+    # -- Create the driver ServiceAccount. With false, name an existing one; it gets the chart's Role.
     create: true
-    # -- Driver ServiceAccount name. Defaults to <fullname>-driver.
+    # -- Driver ServiceAccount name. Defaults to <fullname>-driver. Required when create is false: the chart still
+    # creates the Role and RoleBinding that let this ServiceAccount manage executor pods.
     name: ""
     # -- Driver ServiceAccount annotations (for example cloud workload identity)
     annotations: {}
@@ -257,6 +265,7 @@ historyServer:
   enabled: false
   # -- Event log directory (spark.history.fs.logDirectory). Required when enabled.
   logDirectory: ""
+  # @schema additionalProperties: {type: [string, number, boolean]}
   # -- Extra spark.history.* properties
   conf: {}
   # -- History server daemon memory (SPARK_DAEMON_MEMORY)
@@ -281,6 +290,10 @@ historyServer:
   affinity: {}
   # -- History server tolerations
   tolerations: []
+  # -- History server topology spread constraints
+  topologySpreadConstraints: []
+  # -- History server priority class
+  priorityClassName: ""
 
 restart:
   # -- Restart the driver on a schedule with a CronJob
@@ -297,6 +310,12 @@ restart:
     tag: v1.37.2
     # -- kubectl image pull policy
     pullPolicy: IfNotPresent
+  # -- Resources of the restart container
+  resources: {}
+  # -- Node selector of the restart pod
+  nodeSelector: {}
+  # -- Tolerations of the restart pod
+  tolerations: []
 
 # -- Extra Kubernetes objects, each a map or a templated string
 extraObjects: []

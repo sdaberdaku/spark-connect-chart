@@ -109,3 +109,22 @@ tests:
       - contains:
           path: 'spec.template.spec.containers[0].env'
           content: {name: SPARK_HISTORY_OPTS, value: '-Dspark.history.fs.logDirectory="file:/e" -Dspark.history.ui.port="18080" -Dspark.history.ui.maxApplications="1000000"'}
+  - it: sets priority class and topology spread constraints
+    set:
+      historyServer: {enabled: true, logDirectory: "file:/e", priorityClassName: high, topologySpreadConstraints: [{maxSkew: 1, topologyKey: zone, whenUnsatisfiable: ScheduleAnyway}]}
+    documentSelector: {path: kind, value: Deployment}
+    asserts:
+      - equal: {path: spec.template.spec.priorityClassName, value: high}
+      - equal: {path: spec.template.spec.topologySpreadConstraints, value: [{maxSkew: 1, topologyKey: zone, whenUnsatisfiable: ScheduleAnyway}]}
+  - it: sets neither by default
+    set: {historyServer: {enabled: true, logDirectory: "file:/e"}}
+    documentSelector: {path: kind, value: Deployment}
+    asserts:
+      - notExists: {path: spec.template.spec.priorityClassName}
+      - notExists: {path: spec.template.spec.topologySpreadConstraints}
+  - it: fails on a nested conf map
+    set:
+      historyServer: {enabled: true, logDirectory: "file:/e", conf: {spark: {history: {x: 1}}}}
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/historyServer/conf/spark': got object, want boolean or number or string"

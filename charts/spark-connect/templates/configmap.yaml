@@ -8,7 +8,7 @@ metadata:
 data:
   spark-defaults.conf: |
     {{- range $k, $v := include "spark-connect.sparkDefaults" . | fromYaml }}
-    {{ $k }} {{ $v }}
+    {{ $k }} {{ $v | replace "\\" "\\\\" }}
     {{- end }}
   {{- if .Values.pools }}
   pools.xml: |

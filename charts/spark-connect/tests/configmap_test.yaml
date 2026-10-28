@@ -23,6 +23,19 @@ tests:
       - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.local.dir /var/data/spark-local$'}
       - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.jars.ivy /tmp/.ivy$'}
 
+  - it: uses executor.image for executors when set
+    set:
+      executor: {image: {repository: my/executor, tag: "9.9"}}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.executor.container.image my/executor:9.9$'}
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.container.image apache/spark:4.2.0$'}
+
+  - it: falls back per field to the driver image for executors
+    set:
+      executor: {image: {tag: "9.9"}}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.kubernetes.executor.container.image apache/spark:9.9$'}
+
   - it: renders default sparkConf
     asserts:
       - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.sql.execution.pythonUDF.arrow.enabled false$'}
@@ -60,6 +73,41 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "sparkConf.spark.kubernetes.namespace is set by the chart; use the release namespace instead"
+
+  - it: fails on a key without a value path
+    set:
+      sparkConf: {spark.master: "local[*]"}
+    asserts:
+      - failedTemplate:
+          errorMessage: "sparkConf.spark.master is set by the chart and cannot be overridden (the chart always targets the in-cluster API server)"
+
+  - it: the schema rejects an unescaped nested key
+    set:
+      sparkConf:
+        spark: {sql: {shuffle: {partitions: 64}}}
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/sparkConf/spark': got object, want boolean or number or string"
+
+  - it: the schema rejects a list value
+    set:
+      sparkConf: {spark.foo: [a, b]}
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/sparkConf/spark.foo': got array, want boolean or number or string"
+
+  - it: escapes backslashes for the properties format
+    set:
+      sparkConf: {spark.foo.path: 'C:\temp\x'}
+    asserts:
+      - matchRegex: {path: 'data["spark-defaults.conf"]', pattern: '(?m)^spark.foo.path C:\\\\temp\\\\x$'}
+
+  - it: fails on a value with a newline
+    set:
+      sparkConf: {spark.foo.text: "a\nb"}
+    asserts:
+      - failedTemplate:
+          errorMessage: "sparkConf.spark.foo.text contains a newline, which spark-defaults.conf cannot hold"
 
   - it: renders packages
     set:
