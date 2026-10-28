@@ -1,8 +1,10 @@
 # Looks for new Spark lines on Docker Hub once a day and opens a pull request that adds them to
-# spark-versions.json and bumps the chart. The pull request triggers ci.yml itself (a ci.yml dispatch is
-# the fallback when no run shows up) and auto-merges once `ci-ok` is green. Each run also repairs an open
-# discovery pull request (rebase when behind, close and redo when conflicting) and dispatches release.yml
-# when the chart version on main has no tag yet.
+# spark-versions.json and bumps the chart. A pull request opened with GITHUB_TOKEN never triggers
+# workflows, so scripts/ensure_ci.sh dispatches ci.yml on the branch; the pull request auto-merges once
+# `ci-ok` is green. Each run also repairs an open discovery pull request (rebase when behind, close and
+# redo when conflicting, rerun a failed CI run once, fail the run when CI fails again so the owner is
+# emailed) and dispatches release.yml when the chart version on main has no tag yet.
+# With dry_run=true a run only prints what it would add and changes nothing.
 name: discover
 
 on:
@@ -35,6 +37,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Dispatch the release when the chart version on main is untagged
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           # release.yml arrives with the release automation; nothing to dispatch before that.
@@ -46,6 +49,7 @@ jobs:
           fi
       - name: Repair an open discovery pull request or clear stale branches
         id: open
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           # Only same-repo PRs: a fork PR with a discover/ head branch must not break this step.
@@ -86,6 +90,20 @@ jobs:
                 done
                 ;;
             esac
+            sha=$(gh pr view "$branch" --json headRefOid -q .headRefOid)
+            # No run yet (for example right after a rebase) leaves the three empty; ensure_ci.sh then dispatches one.
+            run="" conclusion="" attempt=""
+            read -r run conclusion attempt < <(gh run list -w ci.yml -c "$sha" --limit 1 --json databaseId,conclusion,attempt -q '.[] | "\(.databaseId) \(.conclusion) \(.attempt)"') || true
+            if [[ "$conclusion" =~ ^(failure|timed_out|cancelled|startup_failure)$ ]]; then
+              if [ "$attempt" -le 1 ]; then
+                echo "CI run $run ended $conclusion on $branch: rerunning its failed jobs once."
+                gh run rerun "$run" --failed
+                skip=true
+                continue
+              fi
+              echo "::error::Discovery pull request on $branch: CI run $run ended $conclusion again (attempt $attempt). Fix the failure or close the pull request by hand."
+              exit 1
+            fi
             scripts/ensure_ci.sh "$branch"
             gh pr merge "$branch" --auto --squash --delete-branch
             skip=true
