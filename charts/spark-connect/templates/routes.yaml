@@ -1,0 +1,37 @@
+{{- $root := . }}
+{{- range $key, $suffix := dict "connect" "connect" "ui" "ui" "historyServer" "history-server" }}
+{{- $v := index $root.Values.gateway $key }}
+{{- if $v.enabled }}
+{{- if not $v.parentRefs }}
+{{- fail (printf "gateway.%s.parentRefs is required" $key) }}
+{{- end }}
+{{- $service := ternary (include "spark-connect.nameWith" (list $root "history-server")) (include "spark-connect.fullname" $root) (eq $key "historyServer") }}
+{{- $port := index (dict "connect" (include "spark-connect.num" $root.Values.service.ports.connect) "ui" (include "spark-connect.num" $root.Values.service.ports.ui) "historyServer" (include "spark-connect.num" $root.Values.historyServer.port)) $key }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: {{ ternary "GRPCRoute" "HTTPRoute" (eq $key "connect") }}
+metadata:
+  name: {{ include "spark-connect.nameWith" (list $root $suffix) }}
+  labels:
+    {{- include "spark-connect.labels" $root | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $v.parentRefs | nindent 4 }}
+  {{- with $v.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - {{- with $v.matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ $service }}
+          port: {{ $port }}
+{{- end }}
+{{- end }}

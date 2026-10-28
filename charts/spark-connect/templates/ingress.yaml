@@ -1,0 +1,42 @@
+{{- $root := . }}
+{{- range $key, $suffix := dict "connect" "connect" "ui" "ui" "historyServer" "history-server" }}
+{{- $v := index $root.Values.ingress $key }}
+{{- if $v.enabled }}
+{{- $service := ternary (include "spark-connect.nameWith" (list $root "history-server")) (include "spark-connect.fullname" $root) (eq $key "historyServer") }}
+{{- $port := ternary "http" $key (eq $key "historyServer") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "spark-connect.nameWith" (list $root $suffix) }}
+  labels:
+    {{- include "spark-connect.labels" $root | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $v.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $v.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range $v.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ $service }}
+                port:
+                  name: {{ $port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

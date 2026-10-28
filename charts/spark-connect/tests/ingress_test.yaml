@@ -1,0 +1,56 @@
+suite: ingress
+chart:
+  version: 1.0.0
+  appVersion: 4.2.0
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments: {count: 0}
+  - it: renders the connect ingress
+    set:
+      ingress:
+        connect:
+          enabled: true
+          className: nginx
+          annotations: {a: b}
+          hosts:
+            - host: spark.example.com
+              paths:
+                - path: /
+                - path: /x
+                  pathType: Exact
+          tls:
+            - secretName: tls
+              hosts: [spark.example.com]
+    asserts:
+      - hasDocuments: {count: 1}
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-connect}
+      - equal: {path: spec.ingressClassName, value: nginx}
+      - equal: {path: metadata.annotations, value: {a: b}}
+      - equal: {path: spec.tls, value: [{secretName: tls, hosts: [spark.example.com]}]}
+      - equal: {path: "spec.rules[0].host", value: spark.example.com}
+      - equal:
+          path: "spec.rules[0].http.paths"
+          value:
+            - path: /
+              pathType: Prefix
+              backend: {service: {name: RELEASE-NAME-spark-connect, port: {name: connect}}}
+            - path: /x
+              pathType: Exact
+              backend: {service: {name: RELEASE-NAME-spark-connect, port: {name: connect}}}
+  - it: points the ui ingress at the ui port
+    set:
+      ingress:
+        ui: {enabled: true, hosts: [{host: ui.example.com, paths: [{path: /}]}]}
+    asserts:
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-ui}
+      - equal: {path: "spec.rules[0].http.paths[0].backend.service", value: {name: RELEASE-NAME-spark-connect, port: {name: ui}}}
+  - it: points the history server ingress at the history server service
+    set:
+      ingress:
+        historyServer: {enabled: true, hosts: [{host: h.example.com, paths: [{path: /}]}]}
+    asserts:
+      - equal: {path: metadata.name, value: RELEASE-NAME-spark-connect-history-server}
+      - equal: {path: "spec.rules[0].http.paths[0].backend.service", value: {name: RELEASE-NAME-spark-connect-history-server, port: {name: http}}}
