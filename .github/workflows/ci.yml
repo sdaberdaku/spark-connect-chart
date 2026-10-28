@@ -49,18 +49,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - id: site
-        run: test -f mkdocs.yml && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v7
-        if: steps.site.outputs.present == 'true'
         with:
           python-version: "3.14"
-      - if: steps.site.outputs.present == 'true'
-        run: make tools docs
-      - if: steps.site.outputs.present == 'true'
-        run: pip install -r docs/site/requirements.txt
-      - if: steps.site.outputs.present == 'true'
-        run: mkdocs build --strict
+      - run: make tools docs
+      - run: pip install -r docs/site/requirements.txt
+      - run: mkdocs build --strict
 
   e2e:
     name: e2e (spark ${{ matrix.spark }})
