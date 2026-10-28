@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end test: chart on kind, plain port-forward, then through Envoy Gateway with a token.
+# End-to-end test: chart on kind, plain port-forward, then a token over port-forward and through Envoy Gateway.
 # Env: SPARK_VERSION (required), KEEP_CLUSTER=1 keeps the cluster, CI skips deletion.
 # The script uses its own kubeconfig (in a temp dir), so it never touches your current context.
 # With KEEP_CLUSTER=1, run `kind export kubeconfig --name spark-connect-e2e` to reach the cluster afterwards.
@@ -99,6 +99,13 @@ kubectl port-forward -n envoy-gateway-system "svc/$ENVOY_SVC" 8443:443 >/dev/nul
 PIDS+=($!)
 wait_port 8443 $!
 TOKEN=$(kubectl get secret sc-spark-connect-auth -n "$NS" -o jsonpath='{.data.token}' | base64 -d)
+# The token also works over a plain port-forward to the Service: for a localhost host the client sends it over
+# plaintext gRPC (local channel credentials) instead of turning TLS on.
+kubectl port-forward -n "$NS" svc/sc-spark-connect 15003:15002 >/dev/null &
+PIDS+=($!)
+wait_port 15003 $!
+client --remote "sc://localhost:15003/;token=$TOKEN"
+client --remote "sc://localhost:15003" --expect-auth-failure
 export GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$TMP/tls.crt
 client --remote "sc://localhost:8443/;use_ssl=true;token=$TOKEN"
 client --remote "sc://localhost:8443/;use_ssl=true" --expect-auth-failure
