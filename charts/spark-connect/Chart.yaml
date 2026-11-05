@@ -4,7 +4,7 @@ description: Apache Spark Connect server on Kubernetes, with executor pods start
 type: application
 version: 1.1.1
 # renovate: datasource=docker depName=apache/spark
-appVersion: "4.2.0"
+appVersion: "4.2.1"
 kubeVersion: ">=1.29.0-0"
 home: https://sdaberdaku.github.io/spark-connect-chart/
 sources:
