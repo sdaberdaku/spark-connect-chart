@@ -22,7 +22,7 @@ KUBECTL_VERSION ?= v1.37.2
 # renovate: datasource=github-releases depName=norwoodj/helm-docs
 HELM_DOCS_VERSION ?= v1.14.2
 # renovate: datasource=github-releases depName=mikefarah/yq
-YQ_VERSION ?= v4.54.1
+YQ_VERSION ?= v4.54.3
 # renovate: datasource=github-releases depName=yannh/kubeconform
 KUBECONFORM_VERSION ?= v0.8.0
 # renovate: datasource=github-releases depName=losisin/helm-values-schema-json
