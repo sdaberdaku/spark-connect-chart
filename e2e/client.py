@@ -3,7 +3,7 @@ import argparse
 import sys
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf
+from pyspark.sql.functions import col
 
 
 def main() -> int:
@@ -14,8 +14,7 @@ def main() -> int:
 
     try:
         spark = SparkSession.builder.remote(args.remote).getOrCreate()
-        add_one = udf(lambda x: x + 1, "long")
-        total = spark.range(0, 1000, numPartitions=4).select(add_one("id").alias("v")).groupBy().sum("v").collect()[0][0]
+        total = spark.range(0, 1000, numPartitions=4).select((col("id") + 1).alias("v")).groupBy().sum("v").collect()[0][0]
     except Exception as e:  # noqa: BLE001
         if args.expect_auth_failure and "unauthenticated" in str(e).lower():
             print("E2E OK (auth refused as expected)")
