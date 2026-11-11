@@ -22,20 +22,20 @@ kubectl -n spark port-forward svc/spark-connect 15002:15002
 
 ## Run a query
 
-The PySpark client version has to match the Spark version of the server, which is the chart `appVersion`. The Python minor version has to match the image's Python for Python UDFs (see [Python](python.md)). Read both from the chart and the image:
+The PySpark client version has to match the Spark version of the server, which is the chart `appVersion`. Read it from the chart:
 
 ```console
 SPARK_VERSION=$(helm show chart oci://ghcr.io/sdaberdaku/charts/spark-connect | sed -n 's/^appVersion: "\{0,1\}\([0-9.]*\).*/\1/p')
-PY=$(docker run --rm --entrypoint python3 apache/spark:$SPARK_VERSION -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
-uv run --python "$PY" --with "pyspark-client==$SPARK_VERSION" python - <<'PY'
+uv run --python 3.13 --with "pyspark-client==$SPARK_VERSION" python - <<'PY'
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf
+from pyspark.sql.functions import col
 
 spark = SparkSession.builder.remote("sc://localhost:15002").getOrCreate()
-add_one = udf(lambda x: x + 1, "long")
-print(spark.range(0, 1000, numPartitions=4).select(add_one("id").alias("v")).groupBy().sum("v").collect())
+print(spark.range(0, 1000, numPartitions=4).select((col("id") + 1).alias("v")).groupBy().sum("v").collect())
 PY
 ```
+
+This query has no Python UDF, so the client can run on any Python its PySpark version supports; 3.13 works from Spark 4.0 to 4.3. Python UDFs also need the client on the image's Python minor version, see [Python](python.md).
 
 The chart starts its executors together with the driver and keeps them running (`executor.instances`, one by default), so `kubectl -n spark get pods` shows an executor pod next to the driver before and after the query. The result is `[Row(sum(v)=500500)]`.
 
