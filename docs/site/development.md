@@ -34,7 +34,7 @@ mkdocs build --strict
 
 ## End-to-end test
 
-`make e2e SPARK_VERSION=4.2.0` creates a kind cluster, loads the Spark image, installs Envoy Gateway, and runs a PySpark client of the same Spark version on the Python minor of the image's `python3`. The client runs a query that needs an executor and a Python UDF, in each of these cases:
+`make e2e SPARK_VERSION=4.2.0` creates a kind cluster, loads the Spark image, installs Envoy Gateway, and runs a PySpark client of the same Spark version on Python 3.13. The client runs a query that needs an executor, in each of these cases:
 
 - over `kubectl port-forward` against a release without a token;
 - after the upgrade that turns the token on, over a new `kubectl port-forward` to the driver Service with the token, and once more without it, which must be refused;

@@ -53,9 +53,9 @@ wait_port() {
 }
 
 docker pull "$IMAGE"
-PYMINOR=$(docker run --rm --entrypoint python3 "$IMAGE" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
-echo "image python: $PYMINOR"
-client() { timeout 600 uv run --python "$PYMINOR" --with "pyspark-client==$SPARK_VERSION" "$ROOT/e2e/client.py" "$@"; }
+# No Python UDF in the client, so its Python does not have to match the image's. 3.13 is the newest minor
+# that every pyspark-client row in spark-versions.json supports.
+client() { timeout 600 uv run --python 3.13 --with "pyspark-client==$SPARK_VERSION" "$ROOT/e2e/client.py" "$@"; }
 
 kind delete cluster --name "$CLUSTER" >/dev/null 2>&1 || true
 kind create cluster --name "$CLUSTER" --image "$KIND_NODE_IMAGE" --wait 120s
