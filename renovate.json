@@ -49,7 +49,7 @@
       "bumpVersions": [
         {
           "name": "Chart version",
-          "filePatterns": ["{{packageFileDir}}/Chart.yaml"],
+          "filePatterns": ["charts/spark-connect/Chart.yaml"],
           "matchStrings": ["version:\\s(?<version>\\S+)"],
           "bumpType": "patch"
         }
