@@ -26,7 +26,7 @@ YQ_VERSION ?= v4.54.3
 # renovate: datasource=github-releases depName=yannh/kubeconform
 KUBECONFORM_VERSION ?= v0.8.0
 # renovate: datasource=github-releases depName=losisin/helm-values-schema-json
-HELM_SCHEMA_VERSION ?= v2.6.0
+HELM_SCHEMA_VERSION ?= v2.6.1
 
 export HELM_PLUGINS := $(BIN)/plugins
 export PATH := $(BIN):$(PATH)
