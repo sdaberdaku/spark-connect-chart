@@ -12,7 +12,7 @@ DOCS_OS := $(shell uname -s)
 UNITTEST_OS := $(if $(filter darwin,$(OS)),macos,$(OS))
 
 # renovate: datasource=github-releases depName=helm/helm
-HELM_VERSION ?= v4.3.1
+HELM_VERSION ?= v4.3.2
 # renovate: datasource=github-releases depName=helm-unittest/helm-unittest
 HELM_UNITTEST_VERSION ?= v1.2.1
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
