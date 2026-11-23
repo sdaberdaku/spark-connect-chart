@@ -8,7 +8,7 @@ set -euo pipefail
 # renovate: datasource=docker depName=kindest/node
 KIND_NODE_IMAGE=kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
 # renovate: datasource=docker depName=envoyproxy/gateway-helm
-ENVOY_GATEWAY_VERSION=v1.9.3
+ENVOY_GATEWAY_VERSION=1.10.0
 
 SPARK_VERSION=${SPARK_VERSION:?set SPARK_VERSION}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
